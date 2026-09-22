@@ -1,0 +1,21 @@
+# Shop platform
+web: Web App [ui]
+gateway: API Gateway
+auth: Auth Service
+orders: Orders Service
+payments: Payments Service
+inventory: Inventory Service
+orders-db: Orders DB [db]
+inventory-db: Inventory DB [db]
+events: Event Bus [queue]
+stripe: Stripe [ext]
+
+web -> gateway: HTTPS
+gateway -> auth: verify token
+gateway -> orders: REST
+orders -> orders-db: SQL
+orders -> events: OrderPlaced
+events -> inventory: OrderPlaced
+events -> payments: OrderPlaced
+inventory -> inventory-db: SQL
+payments -> stripe: charge

@@ -11,14 +11,16 @@
     "lint": "oxlint --deny-warnings",
     "fmt": "oxfmt",
     "fmt:check": "oxfmt --check",
-    "check": "bun run fmt:check && bun run lint && bun run typecheck && bun run build",
-    "build:vdom": "vite build --mode vdom --outDir dist-vdom"
+    "check": "bun run fmt:check && bun run lint && bun run typecheck && bun run diagrams:check && bun run build",
+    "diagrams:check": "bun scripts/check-diagrams.ts"
   },
   "dependencies": {
     "@vue-flow/core": "1.48.2",
+    "elkjs": "0.12.0",
     "vue": "3.6.0-rc.9"
   },
   "devDependencies": {
+    "@types/node": "26.6.2",
     "@vitejs/plugin-vue": "6.0.9",
     "oxfmt": "0.70.0",
     "oxlint": "1.85.0",
