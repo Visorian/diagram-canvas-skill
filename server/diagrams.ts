@@ -7,6 +7,7 @@ import {
   isLayout,
   isOps,
   type DiagramFiles,
+  type DiagramState,
   type Layout,
   type Op,
 } from "../src/diagram/format.ts";
@@ -26,39 +27,57 @@ function serializeLayout(layout: Layout) {
   const entries = Object.entries(layout).map(
     ([id, [x, y]]) => `  ${JSON.stringify(id)}: [${x}, ${y}]`,
   );
-  return entries.length === 0 ? undefined : `{\n${entries.join(",\n")}\n}\n`;
+  return entries.length === 0 ? "" : `{\n${entries.join(",\n")}\n}\n`;
 }
 
-// Serves and edits `diagrams/<name>.txt` (model) and `diagrams/<name>.layout.json` (pinned positions).
+const serializeMarks = (marks: string[]) => marks.map((mark) => `${mark}\n`).join("");
+
+// File per part of a diagram; an empty part has no file.
+const parts: { suffix: string; serialize: (state: DiagramState) => string }[] = [
+  { suffix: ".txt", serialize: (state) => state.source },
+  { suffix: ".layout.json", serialize: (state) => serializeLayout(state.layout) },
+  { suffix: ".notes.md", serialize: (state) => state.notes },
+  { suffix: ".marks", serialize: (state) => serializeMarks(state.marks) },
+];
+const partSuffix = /(\.txt|\.layout\.json|\.notes\.md|\.marks)$/;
+
+// Serves and edits `diagrams/<name>.*`: model, pinned positions, notes and marks.
 export function diagramsPlugin(dir = "diagrams"): Plugin {
   const root = resolve(dir);
-  const sourcePath = (name: string) => join(root, `${name}.txt`);
-  const layoutPath = (name: string) => join(root, `${name}.layout.json`);
+  const path = (name: string, suffix: string) => join(root, `${name}${suffix}`);
 
   const list = async () => {
     await mkdir(root, { recursive: true });
     const files = await readdir(root);
-    return files.filter((file) => file.endsWith(".txt")).map((file) => basename(file, ".txt"));
+    return files
+      .filter((file) => file.endsWith(".txt"))
+      .map((file) => basename(file, ".txt"))
+      .filter((name) => namePattern.test(name));
   };
 
   const load = async (name: string): Promise<DiagramFiles> => {
-    const layout: unknown = JSON.parse((await readOptional(layoutPath(name))) ?? "{}");
+    const layout: unknown = JSON.parse((await readOptional(path(name, ".layout.json"))) ?? "{}");
+    const marks = (await readOptional(path(name, ".marks"))) ?? "";
     return {
       name,
-      source: (await readOptional(sourcePath(name))) ?? "",
+      source: (await readOptional(path(name, ".txt"))) ?? "",
       layout: isLayout(layout) ? layout : {},
+      notes: (await readOptional(path(name, ".notes.md"))) ?? "",
+      marks: marks.split("\n").filter((mark) => mark.trim() !== ""),
     };
   };
 
   const save = async (name: string, ops: Op[]) => {
     const current = await load(name);
-    const next = applyOps(current.source, current.layout, ops);
-    if (next.source !== current.source) await writeFile(sourcePath(name), next.source);
-    const layout = serializeLayout(next.layout);
-    if (layout !== serializeLayout(current.layout)) {
-      if (layout === undefined) await rm(layoutPath(name), { force: true });
-      else await writeFile(layoutPath(name), layout);
-    }
+    const next = applyOps(current, ops);
+    await Promise.all(
+      parts.map(async ({ suffix, serialize }) => {
+        const content = serialize(next);
+        if (content === serialize(current)) return;
+        if (content === "" && suffix !== ".txt") await rm(path(name, suffix), { force: true });
+        else await writeFile(path(name, suffix), content);
+      }),
+    );
     return { name, ...next };
   };
 
@@ -69,7 +88,7 @@ export function diagramsPlugin(dir = "diagrams"): Plugin {
       server.watcher.add(root);
       const notify = async (file: string) => {
         if (!file.startsWith(root)) return;
-        const name = basename(file).replace(/(\.layout\.json|\.txt)$/, "");
+        const name = basename(file).replace(partSuffix, "");
         if (!namePattern.test(name)) return;
         server.ws.send("diagrams:change", { names: await list(), diagram: await load(name) });
       };

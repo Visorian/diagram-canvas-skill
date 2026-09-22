@@ -1,3 +1,5 @@
+import { applyNoteOp, type NoteOp } from "./notes.ts";
+
 // Line format, one statement per line:
 //   id: Label [kind]         node, kind defaults to "service"
 //   source -> target: Label  edge, label optional; unknown ids become nodes
@@ -26,10 +28,16 @@ export interface Diagram {
 export type Position = [x: number, y: number];
 export type Layout = Record<string, Position>;
 
-export interface DiagramFiles {
-  name: string;
+// Everything stored for one diagram; `marks` are node or edge ids (see `edgeId`).
+export interface DiagramState {
   source: string;
   layout: Layout;
+  notes: string;
+  marks: string[];
+}
+
+export interface DiagramFiles extends DiagramState {
+  name: string;
 }
 
 export type Op =
@@ -38,7 +46,10 @@ export type Op =
   | { type: "upsert-edge"; edge: DiagramEdge }
   | { type: "remove-edge"; source: string; target: string }
   | { type: "move"; id: string; position: Position }
-  | { type: "reset-layout" };
+  | { type: "reset-layout" }
+  | { type: "mark"; target: string; marked: boolean }
+  | { type: "clear-marks" }
+  | NoteOp;
 
 type Line =
   | { type: "node"; node: DiagramNode }
@@ -116,6 +127,8 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 const isId = (value: unknown) =>
   typeof value === "string" && new RegExp(`^${idPattern}$`).test(value);
+const isTarget = (value: unknown) =>
+  typeof value === "string" && new RegExp(`^${idPattern}(?:->${idPattern})?$`).test(value);
 // Newlines would inject extra statements into the file.
 const isText = (value: unknown) => typeof value === "string" && !/[\r\n]/.test(value);
 const isPosition = (value: unknown): value is Position =>
@@ -128,7 +141,19 @@ export const isDiagramFiles = (value: unknown): value is DiagramFiles =>
   isRecord(value) &&
   typeof value.name === "string" &&
   typeof value.source === "string" &&
+  typeof value.notes === "string" &&
+  Array.isArray(value.marks) &&
+  value.marks.every(isTarget) &&
   isLayout(value.layout);
+
+const isNote = (value: unknown) =>
+  isRecord(value) &&
+  (value.kind === "note" || value.kind === "question") &&
+  (value.target === undefined || isTarget(value.target)) &&
+  isText(value.text) &&
+  typeof value.text === "string" &&
+  value.text.trim() !== "" &&
+  typeof value.done === "boolean";
 
 function isOp(value: unknown): value is Op {
   if (!isRecord(value)) return false;
@@ -152,7 +177,15 @@ function isOp(value: unknown): value is Op {
     case "move":
       return isId(value.id) && isPosition(value.position);
     case "reset-layout":
+    case "clear-marks":
       return true;
+    case "mark":
+      return isTarget(value.target) && typeof value.marked === "boolean";
+    case "add-note":
+    case "remove-note":
+      return isNote(value.note);
+    case "resolve-note":
+      return isNote(value.note) && typeof value.done === "boolean";
     default:
       return false;
   }
@@ -161,9 +194,11 @@ function isOp(value: unknown): value is Op {
 export const isOps = (value: unknown): value is Op[] => Array.isArray(value) && value.every(isOp);
 
 // Applies canvas edits as line changes so comments, order and untouched lines stay as written.
-export function applyOps(source: string, layout: Layout, ops: Op[]) {
-  let lines = parseLines(source);
-  let nextLayout = { ...layout };
+export function applyOps(state: DiagramState, ops: Op[]): DiagramState {
+  let lines = parseLines(state.source);
+  let nextLayout = { ...state.layout };
+  let { notes } = state;
+  let marks = new Set(state.marks);
   const lastIndex = (type: Line["type"]) => lines.findLastIndex((line) => line.type === type);
   const insertAfterLast = (type: Line["type"], line: Line) => {
     const index = lastIndex(type);
@@ -177,12 +212,17 @@ export function applyOps(source: string, layout: Layout, ops: Op[]) {
       else lines[index] = { type: "node", node: op.node };
       if (op.position) nextLayout[op.node.id] = op.position;
     } else if (op.type === "remove-node") {
+      const touches = (edge: DiagramEdge) => edge.source === op.id || edge.target === op.id;
+      for (const line of lines) {
+        if (line.type === "edge" && touches(line.edge)) marks.delete(edgeId(line.edge));
+      }
       lines = lines.filter(
         (line) =>
           !(line.type === "node" && line.node.id === op.id) &&
-          !(line.type === "edge" && (line.edge.source === op.id || line.edge.target === op.id)),
+          !(line.type === "edge" && touches(line.edge)),
       );
       delete nextLayout[op.id];
+      marks.delete(op.id);
     } else if (op.type === "upsert-edge") {
       const id = edgeId(op.edge);
       const index = lines.findIndex((line) => line.type === "edge" && edgeId(line.edge) === id);
@@ -191,11 +231,24 @@ export function applyOps(source: string, layout: Layout, ops: Op[]) {
     } else if (op.type === "remove-edge") {
       const id = edgeId(op);
       lines = lines.filter((line) => !(line.type === "edge" && edgeId(line.edge) === id));
+      marks.delete(id);
     } else if (op.type === "move") {
       nextLayout[op.id] = op.position;
-    } else {
+    } else if (op.type === "reset-layout") {
       nextLayout = {};
+    } else if (op.type === "mark") {
+      if (op.marked) marks.add(op.target);
+      else marks.delete(op.target);
+    } else if (op.type === "clear-marks") {
+      marks = new Set();
+    } else {
+      notes = applyNoteOp(notes, op);
     }
   }
-  return { source: `${lines.map(serializeLine).join("\n")}\n`, layout: nextLayout };
+  return {
+    source: `${lines.map(serializeLine).join("\n")}\n`,
+    layout: nextLayout,
+    notes,
+    marks: [...marks],
+  };
 }

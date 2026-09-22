@@ -13,7 +13,8 @@ import {
 import "@vue-flow/core/dist/style.css";
 import "@vue-flow/core/dist/theme-default.css";
 import { computed, onMounted, onUnmounted, ref, shallowRef, useTemplateRef, watch } from "vue";
-import DiagramNodeView from "./DiagramNode.vue";
+import DiagramNodeView, { type NodeData } from "./DiagramNode.vue";
+import NotesPanel from "./NotesPanel.vue";
 import {
   edgeId,
   isKind,
@@ -24,6 +25,7 @@ import {
   type Position,
 } from "./diagram/format";
 import { autoLayout, nodeSize } from "./diagram/layout";
+import { parseNotes, type Note } from "./diagram/notes";
 import { useDiagram } from "./diagram/useDiagram";
 
 const { names, files, diagram, layout, open, apply } = useDiagram();
@@ -49,6 +51,15 @@ watch(
   { immediate: true },
 );
 
+const notes = computed(() => parseNotes(files.value?.notes ?? ""));
+const marks = computed(() => new Set(files.value?.marks));
+const isOpen = (note: Note) => note.kind === "question" && !note.done;
+const openQuestions = computed(() => notes.value.filter(isOpen));
+const diagramNotes = computed(() =>
+  notes.value.filter((note) => note.target === undefined && !isOpen(note)),
+);
+const notesFor = (target: string) => notes.value.filter((note) => note.target === target);
+
 const ready = computed(() => files.value !== undefined && auto.value?.name === files.value.name);
 const pinned = computed(() => Object.keys(layout.value).length > 0);
 const selectedNode = computed(() =>
@@ -58,29 +69,51 @@ const selectedEdge = computed(() =>
   diagram.value.edges.find((edge) => edgeId(edge) === selection.value),
 );
 
-const nodes = computed<Node<DiagramNode>[]>(() =>
+const nodes = computed<Node<NodeData>[]>(() =>
   diagram.value.nodes.map((node) => {
     const [x, y] = layout.value[node.id] ?? auto.value?.positions[node.id] ?? [0, 0];
+    const entries = notesFor(node.id);
     return {
       id: node.id,
       type: "diagram",
       position: { x, y },
-      data: node,
+      data: {
+        ...node,
+        marked: marks.value.has(node.id),
+        questions: entries.filter(isOpen).length,
+        notes: entries.filter((note) => note.kind === "note").length,
+      },
       selected: selection.value === node.id,
     };
   }),
 );
 const edges = computed<Edge[]>(() =>
-  diagram.value.edges.map((edge) => ({
-    id: edgeId(edge),
-    source: edge.source,
-    target: edge.target,
-    label: edge.label,
-    type: "smoothstep",
-    markerEnd: MarkerType.ArrowClosed,
-    selected: selection.value === edgeId(edge),
-  })),
+  diagram.value.edges.map((edge) => {
+    const id = edgeId(edge);
+    const questioned = notesFor(id).some(isOpen);
+    const marked = marks.value.has(id);
+    return {
+      id,
+      source: edge.source,
+      target: edge.target,
+      label: questioned ? `${edge.label} ?`.trim() : edge.label,
+      type: "smoothstep",
+      markerEnd: MarkerType.ArrowClosed,
+      selected: selection.value === id,
+      ...(marked && {
+        style: { stroke: "#d97706", strokeWidth: 3 },
+        labelStyle: { fill: "#b45309", fontWeight: 600 },
+      }),
+    };
+  }),
 );
+
+function labelFor(target: string): string {
+  const node = diagram.value.nodes.find((candidate) => candidate.id === target);
+  if (node) return node.label;
+  const edge = diagram.value.edges.find((candidate) => edgeId(candidate) === target);
+  return edge ? `${labelFor(edge.source)} → ${labelFor(edge.target)}` : target;
+}
 
 const fieldValue = (event: Event) =>
   event.target instanceof HTMLInputElement || event.target instanceof HTMLSelectElement
@@ -156,6 +189,18 @@ function onDragStop({ nodes: moved }: NodeDragEvent) {
   );
 }
 
+function toggleMark(target: string) {
+  void apply([{ type: "mark", target, marked: !marks.value.has(target) }]);
+}
+
+// Selects an element from the sidebar and brings it into view.
+function focus(target: string) {
+  selection.value = target;
+  const edge = diagram.value.edges.find((candidate) => edgeId(candidate) === target);
+  const ids = edge ? [edge.source, edge.target] : [target];
+  void flow.value?.fitView({ nodes: ids, duration: 300, maxZoom: 1.2, padding: 0.4 });
+}
+
 // The click that ends a connection drag lands on the pane; keep the new edge selected.
 let connected = false;
 
@@ -173,7 +218,10 @@ function onConnect({ source, target }: Connection) {
 
 function onKeydown(event: KeyboardEvent) {
   const typing = event.target instanceof HTMLElement && event.target.closest("input, select");
-  if ((event.key === "Delete" || event.key === "Backspace") && !typing) removeSelection();
+  if (typing) return;
+  if (event.key === "Delete" || event.key === "Backspace") removeSelection();
+  else if (event.key === "m" && selection.value) toggleMark(selection.value);
+  else if (event.key === "Escape") selection.value = undefined;
 }
 onMounted(() => window.addEventListener("keydown", onKeydown));
 onUnmounted(() => window.removeEventListener("keydown", onKeydown));
@@ -216,7 +264,7 @@ onUnmounted(() => window.removeEventListener("keydown", onKeydown));
         <span class="text-xs font-normal text-slate-500">diagrams/{{ files?.name }}.txt</span>
       </label>
 
-      <form v-if="selectedNode" :key="selectedNode.id" class="grid gap-3" @submit.prevent>
+      <section v-if="selectedNode" :key="selectedNode.id" class="grid gap-3">
         <h2 class="font-semibold">Node {{ selectedNode.id }}</h2>
         <label class="grid gap-1 text-sm">
           Label
@@ -232,36 +280,92 @@ onUnmounted(() => window.removeEventListener("keydown", onKeydown));
             <option v-for="kind in kinds" :key="kind" :value="kind">{{ kind }}</option>
           </select>
         </label>
+        <button
+          class="button justify-self-start"
+          type="button"
+          @click="toggleMark(selectedNode.id)"
+        >
+          {{ marks.has(selectedNode.id) ? "Unmark" : "Mark" }}
+        </button>
+        <h3 class="text-sm font-medium">Notes and questions</h3>
+        <NotesPanel
+          :notes="notesFor(selectedNode.id)"
+          :target="selectedNode.id"
+          form
+          @apply="apply"
+        />
         <button class="button justify-self-start" type="button" @click="removeSelection">
           Delete node
         </button>
-      </form>
+      </section>
 
-      <form v-else-if="selectedEdge" :key="selection" class="grid gap-3" @submit.prevent>
+      <section v-else-if="selectedEdge && selection" :key="selection" class="grid gap-3">
         <h2 class="font-semibold">{{ selectedEdge.source }} → {{ selectedEdge.target }}</h2>
         <label class="grid gap-1 text-sm">
           Label
           <input class="field" :value="selectedEdge.label" @change="updateEdgeLabel" />
         </label>
+        <button class="button justify-self-start" type="button" @click="toggleMark(selection)">
+          {{ marks.has(selection) ? "Unmark" : "Mark" }}
+        </button>
+        <h3 class="text-sm font-medium">Notes and questions</h3>
+        <NotesPanel :notes="notesFor(selection)" :target="selection" form @apply="apply" />
         <button class="button justify-self-start" type="button" @click="removeSelection">
           Delete connection
         </button>
-      </form>
+      </section>
 
-      <form v-else-if="files" class="grid gap-3" @submit.prevent="addNode">
-        <h2 class="font-semibold">Add node</h2>
-        <label class="grid gap-1 text-sm">
-          Label
-          <input v-model="draftLabel" class="field" placeholder="Orders Service" />
-        </label>
-        <label class="grid gap-1 text-sm">
-          Kind
-          <select v-model="draftKind" class="field">
-            <option v-for="kind in kinds" :key="kind" :value="kind">{{ kind }}</option>
-          </select>
-        </label>
-        <button class="button justify-self-start" :disabled="!draftLabel.trim()">Add</button>
-      </form>
+      <template v-else-if="files">
+        <section v-if="marks.size > 0" class="grid gap-2">
+          <h2 class="font-semibold">Marked</h2>
+          <ul class="grid gap-1 text-sm">
+            <li v-for="mark in marks" :key="mark">
+              <button type="button" class="text-indigo-700 hover:underline" @click="focus(mark)">
+                {{ labelFor(mark) }}
+              </button>
+            </li>
+          </ul>
+          <button
+            class="button justify-self-start"
+            type="button"
+            @click="apply([{ type: 'clear-marks' }])"
+          >
+            Clear marks
+          </button>
+        </section>
+
+        <section class="grid gap-2">
+          <h2 class="font-semibold">Open questions</h2>
+          <NotesPanel
+            v-if="openQuestions.length > 0"
+            :notes="openQuestions"
+            :label-for="labelFor"
+            @apply="apply"
+            @select="focus"
+          />
+          <p v-else class="text-sm text-slate-500">None yet.</p>
+        </section>
+
+        <section class="grid gap-2">
+          <h2 class="font-semibold">Diagram notes</h2>
+          <NotesPanel :notes="diagramNotes" form @apply="apply" />
+        </section>
+
+        <form class="grid gap-3" @submit.prevent="addNode">
+          <h2 class="font-semibold">Add node</h2>
+          <label class="grid gap-1 text-sm">
+            Label
+            <input v-model="draftLabel" class="field" placeholder="Orders Service" />
+          </label>
+          <label class="grid gap-1 text-sm">
+            Kind
+            <select v-model="draftKind" class="field">
+              <option v-for="kind in kinds" :key="kind" :value="kind">{{ kind }}</option>
+            </select>
+          </label>
+          <button class="button justify-self-start" :disabled="!draftLabel.trim()">Add</button>
+        </form>
+      </template>
 
       <ul v-if="diagram.errors.length > 0" class="grid gap-1 text-sm text-red-700">
         <li v-for="error in diagram.errors" :key="error">{{ error }}</li>
@@ -269,8 +373,8 @@ onUnmounted(() => window.removeEventListener("keydown", onKeydown));
 
       <div class="mt-auto grid gap-3 text-xs text-slate-500">
         <p>
-          Drag from a node's bottom handle to connect. Delete removes the selection. Moved nodes
-          stay where you put them until you run auto layout.
+          Drag from a node's bottom handle to connect. M marks the selection, Delete removes it.
+          Moved nodes stay where you put them until you run auto layout.
         </p>
         <button
           class="button justify-self-start"

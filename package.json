@@ -11,8 +11,8 @@
     "lint": "oxlint --deny-warnings",
     "fmt": "oxfmt",
     "fmt:check": "oxfmt --check",
-    "check": "bun run fmt:check && bun run lint && bun run typecheck && bun run diagrams:check && bun run build",
-    "diagrams:check": "bun scripts/check-diagrams.ts"
+    "check": "bun run fmt:check && bun run lint && bun run typecheck && bun run diagrams && bun run build",
+    "diagrams": "bun scripts/diagrams.ts"
   },
   "dependencies": {
     "@vue-flow/core": "1.48.2",
