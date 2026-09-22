@@ -45,7 +45,7 @@ function add(kind: Note["kind"]) {
           <button
             v-if="labelFor && note.target"
             type="button"
-            class="font-medium text-indigo-700 hover:underline"
+            class="link font-medium"
             @click="emit('select', note.target)"
           >
             {{ labelFor(note.target) }}:
@@ -54,7 +54,7 @@ function add(kind: Note["kind"]) {
         </span>
         <button
           type="button"
-          class="px-1 text-slate-400 hover:text-red-600"
+          class="px-1 text-slate-400 hover:text-red-600 dark:hover:text-red-400"
           aria-label="Delete entry"
           @click="emit('apply', [{ type: 'remove-note', note }])"
         >

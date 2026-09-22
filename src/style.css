@@ -1,0 +1,26 @@
+.vue-flow__handle {
+  width: 10px;
+  height: 10px;
+}
+
+.dark .vue-flow__edge-path,
+.dark .vue-flow__connection-path {
+  stroke: #64748b;
+}
+
+.dark .vue-flow__edge.selected .vue-flow__edge-path {
+  stroke: #cbd5e1;
+}
+
+.dark .vue-flow__edge-text {
+  fill: #cbd5e1;
+}
+
+.dark .vue-flow__edge-textbg {
+  fill: #020617;
+}
+
+.dark .vue-flow__handle {
+  background: #94a3b8;
+  border-color: #0f172a;
+}
