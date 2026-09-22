@@ -1,0 +1,24 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["typescript", "vue", "unicorn", "oxc", "import"],
+  "categories": {
+    "correctness": "error",
+    "suspicious": "error",
+    "perf": "error"
+  },
+  "env": {
+    "browser": true
+  },
+  "options": {
+    "typeAware": true
+  },
+  "ignorePatterns": ["dist/**", ".playwright-cli/**"],
+  "rules": {
+    "import/no-unassigned-import": [
+      "error",
+      {
+        "allow": ["virtual:uno.css"]
+      }
+    ]
+  }
+}
