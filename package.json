@@ -14,6 +14,7 @@
     "check": "bun run fmt:check && bun run lint && bun run typecheck && bun run build"
   },
   "dependencies": {
+    "@vue-flow/core": "1.48.2",
     "vue": "3.6.0-rc.9"
   },
   "devDependencies": {

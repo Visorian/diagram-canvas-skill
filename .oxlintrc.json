@@ -17,7 +17,7 @@
     "import/no-unassigned-import": [
       "error",
       {
-        "allow": ["virtual:uno.css"]
+        "allow": ["**/*.css", "virtual:uno.css"]
       }
     ]
   }
