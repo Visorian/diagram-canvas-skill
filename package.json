@@ -11,7 +11,8 @@
     "lint": "oxlint --deny-warnings",
     "fmt": "oxfmt",
     "fmt:check": "oxfmt --check",
-    "check": "bun run fmt:check && bun run lint && bun run typecheck && bun run build"
+    "check": "bun run fmt:check && bun run lint && bun run typecheck && bun run build",
+    "build:vdom": "vite build --mode vdom --outDir dist-vdom"
   },
   "dependencies": {
     "@vue-flow/core": "1.48.2",

@@ -12,7 +12,7 @@
   "options": {
     "typeAware": true
   },
-  "ignorePatterns": ["dist/**", ".playwright-cli/**"],
+  "ignorePatterns": ["dist/**", ".playwright-cli/**", "dist-vdom/**"],
   "rules": {
     "import/no-unassigned-import": [
       "error",
@@ -20,5 +20,15 @@
         "allow": ["**/*.css", "virtual:uno.css"]
       }
     ]
-  }
+  },
+  "overrides": [
+    {
+      "files": ["bench/*.js"],
+      "rules": {
+        "no-unused-expressions": "off",
+        "no-await-in-loop": "off",
+        "unicorn/consistent-function-scoping": "off"
+      }
+    }
+  ]
 }
