@@ -70,13 +70,45 @@ const promptKey = ref(0);
 let pointer: Point = { x: 0, y: 0 };
 
 // On small screens, tapping an element opens the sheet and keeps the element visible above it.
-watch(selection, async (target) => {
+// Waits out a possible double tap first, which opens the note prompt instead of the sheet.
+let sheetTimer: ReturnType<typeof setTimeout> | undefined;
+watch(selection, (target) => {
   sidebar.value?.scrollTo({ top: 0 });
+  clearTimeout(sheetTimer);
   if (!target || !small.matches) return;
-  sidebarOpen.value = true;
-  await nextTick();
-  revealAboveSheet(target);
+  sheetTimer = setTimeout(async () => {
+    sidebarOpen.value = true;
+    await nextTick();
+    revealAboveSheet(target);
+  }, 350);
 });
+
+// Mobile sheet: half or full height; the grab bar drags it (down closes, up expands).
+const sheetFull = ref(false);
+const sheetOffset = ref(0);
+let dragStart: number | undefined;
+
+function onGrabStart(event: PointerEvent) {
+  if (event.target instanceof Element && event.target.closest("button")) return;
+  dragStart = event.clientY;
+  if (event.currentTarget instanceof Element)
+    event.currentTarget.setPointerCapture(event.pointerId);
+}
+
+function onGrabMove(event: PointerEvent) {
+  if (dragStart !== undefined) sheetOffset.value = event.clientY - dragStart;
+}
+
+function onGrabEnd() {
+  if (dragStart === undefined) return;
+  const offset = sheetOffset.value;
+  dragStart = undefined;
+  sheetOffset.value = 0;
+  if (offset > 80) {
+    if (sheetFull.value) sheetFull.value = false;
+    else setSidebar(false);
+  } else if (offset < -60) sheetFull.value = true;
+}
 
 function revealAboveSheet(target: string) {
   const store = flow.value;
@@ -232,9 +264,13 @@ const clamp = (value: number, max: number) => Math.max(8, Math.min(value, max - 
 function place({ x, y }: Point, size: { width: number; height: number }): Point {
   const rect = canvas.value?.getBoundingClientRect();
   if (!rect) return { x, y };
+  // On small screens an open sheet covers the lower part of the canvas.
+  const sheetTop =
+    small.matches && sidebarOpen.value ? sidebar.value?.getBoundingClientRect().top : undefined;
+  const bottom = Math.min(rect.bottom, sheetTop ?? rect.bottom);
   return {
     x: clamp(x - rect.left, rect.width - size.width),
-    y: clamp(y - rect.top, rect.height - size.height),
+    y: clamp(y - rect.top, bottom - rect.top - size.height),
   };
 }
 
@@ -407,7 +443,9 @@ function onElementMenu(target: string, event: MouseEvent | TouchEvent) {
 function onElementDoubleClick({ event, ...element }: NodeMouseEvent | EdgeMouseEvent) {
   const target = "node" in element ? element.node.id : element.edge.id;
   selection.value = target;
-  if (!readOnly) promptNote(target, "note", eventPoint(event));
+  if (readOnly) return;
+  clearTimeout(sheetTimer);
+  promptNote(target, "note", eventPoint(event));
 }
 
 function onCanvasDoubleClick(event: MouseEvent) {
@@ -581,8 +619,44 @@ function closePopovers() {
     <aside
       v-show="sidebarOpen"
       ref="sidebar"
-      class="fixed inset-x-0 bottom-0 z-30 flex max-h-[65dvh] flex-col gap-6 overflow-y-auto rounded-t-xl border-t border-slate-200 bg-slate-50 px-4 pt-4 text-sm shadow-lg dark:border-slate-800 dark:bg-slate-900 md:static md:max-h-none md:w-80 md:shrink-0 md:rounded-none md:border-t-0 md:border-l md:shadow-none"
+      class="fixed inset-x-0 bottom-0 z-30 flex flex-col gap-6 overflow-y-auto border-t border-slate-200 bg-slate-50 px-4 text-sm shadow-lg dark:border-slate-800 dark:bg-slate-900 md:static md:pt-4 md:h-auto md:max-h-none md:w-80 md:shrink-0 md:rounded-none md:border-t-0 md:border-l md:shadow-none"
+      :class="[
+        sheetFull ? 'h-dvh' : 'max-h-[65dvh] rounded-t-xl',
+        sheetOffset === 0 && 'transition-transform duration-200',
+      ]"
+      :style="sheetOffset > 0 ? { transform: `translateY(${sheetOffset}px)` } : undefined"
     >
+      <div
+        class="sticky top-0 z-10 -mx-4 -mb-3 flex touch-none select-none justify-center bg-slate-50 px-4 pb-2 pt-2.5 dark:bg-slate-900 md:hidden"
+        @pointerdown="onGrabStart"
+        @pointermove="onGrabMove"
+        @pointerup="onGrabEnd"
+        @pointercancel="onGrabEnd"
+      >
+        <span class="h-1.5 w-10 rounded-full bg-slate-300 dark:bg-slate-600" aria-hidden="true" />
+        <button
+          type="button"
+          class="muted absolute right-2 top-0.5 grid size-8 place-items-center"
+          :aria-label="sheetFull ? 'Half height' : 'Full height'"
+          :title="sheetFull ? 'Half height' : 'Full height'"
+          @click="sheetFull = !sheetFull"
+        >
+          <svg
+            class="size-5"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path v-if="sheetFull" d="m7 6 5 5 5-5M7 13l5 5 5-5" />
+            <path v-else d="m17 11-5-5-5 5M17 18l-5-5-5 5" />
+          </svg>
+        </button>
+      </div>
+
       <header class="grid gap-1.5">
         <div class="relative flex items-center gap-2">
           <SelectMenu
