@@ -22,15 +22,9 @@ import CanvasLegend from "./CanvasLegend.vue";
 import HelpPopover from "./HelpPopover.vue";
 import NoteComposer from "./NoteComposer.vue";
 import NoteItem from "./NoteItem.vue";
+import SelectMenu from "./SelectMenu.vue";
 import { kindStyles } from "./kinds";
-import {
-  edgeId,
-  isKind,
-  kinds,
-  type DiagramNode,
-  type Layout,
-  type Position,
-} from "./diagram/format";
+import { edgeId, kinds, type DiagramNode, type Layout, type Position } from "./diagram/format";
 import { autoLayout, nodeSize } from "./diagram/layout";
 import { parseNotes, type Note } from "./diagram/notes";
 import { useDiagram } from "./diagram/useDiagram";
@@ -98,6 +92,9 @@ async function copyPrompt() {
   copied.value = true;
   setTimeout(() => (copied.value = false), 2000);
 }
+
+const diagramOptions = computed(() => names.value.map((name) => ({ value: name, label: name })));
+const kindOptions = kinds.map((kind) => ({ value: kind, label: kindStyles[kind].name }));
 
 const ready = computed(() => files.value !== undefined && auto.value?.name === files.value.name);
 const pinned = computed(() => Object.keys(layout.value).length > 0);
@@ -275,11 +272,6 @@ function updateNode(patch: Partial<DiagramNode>) {
   if (selectedNode.value) {
     void apply([{ type: "upsert-node", node: { ...selectedNode.value, ...patch } }]);
   }
-}
-
-function updateKind(event: Event) {
-  const kind = fieldValue(event);
-  if (isKind(kind)) updateNode({ kind });
 }
 
 function updateEdgeLabel(event: Event) {
@@ -479,14 +471,13 @@ function closePopovers() {
     >
       <header class="grid gap-1.5">
         <div class="flex items-center gap-2">
-          <select
-            class="field flex-1"
-            aria-label="Diagram"
-            :value="files?.name"
-            @change="open(fieldValue($event))"
-          >
-            <option v-for="name in names" :key="name" :value="name">{{ name }}</option>
-          </select>
+          <SelectMenu
+            class="flex-1"
+            label="Diagram"
+            :model-value="files?.name ?? ''"
+            :options="diagramOptions"
+            @update:model-value="(name) => void open(name)"
+          />
           <HelpPopover />
           <button
             type="button"
@@ -578,7 +569,7 @@ function closePopovers() {
               "
               @click="toggleMark(selection)"
             >
-              Mark
+              {{ marks.has(selection) ? "Unmark" : "Mark" }}
             </button>
           </div>
 
@@ -692,16 +683,13 @@ function closePopovers() {
                   :value="selectedNode.label"
                   @change="fieldValue($event) && updateNode({ label: fieldValue($event) })"
                 />
-                <select
-                  class="field w-auto"
-                  aria-label="Kind"
-                  :value="selectedNode.kind"
-                  @change="updateKind"
-                >
-                  <option v-for="kind in kinds" :key="kind" :value="kind">
-                    {{ kindStyles[kind].name }}
-                  </option>
-                </select>
+                <SelectMenu
+                  class="w-36"
+                  label="Kind"
+                  :model-value="selectedNode.kind"
+                  :options="kindOptions"
+                  @update:model-value="(kind) => updateNode({ kind })"
+                />
               </div>
               <input
                 v-else-if="selectedEdge"
