@@ -3,7 +3,7 @@ import { ref, watch } from "vue";
 import { kinds } from "./diagram/format";
 import { kindStyles } from "./kinds";
 
-const open = ref(localStorage.getItem("legend") !== "closed");
+const open = ref(localStorage.getItem("legend") === "open");
 watch(open, (value) => localStorage.setItem("legend", value ? "open" : "closed"));
 
 function onToggle(event: Event) {
@@ -14,7 +14,12 @@ const swatch = "h-4 w-7 shrink-0 rounded border-2";
 </script>
 
 <template>
-  <details class="popover absolute bottom-3 left-3 z-5 w-64 text-xs" :open @toggle="onToggle">
+  <details
+    class="popover absolute bottom-3 left-3 z-5 text-xs"
+    :class="open && 'w-64'"
+    :open
+    @toggle="onToggle"
+  >
     <summary class="disclosure px-3 py-2">Legend</summary>
     <div class="grid gap-3 px-3 pb-3">
       <div class="grid gap-1.5">

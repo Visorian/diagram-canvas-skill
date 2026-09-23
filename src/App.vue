@@ -14,7 +14,16 @@ import {
 } from "@vue-flow/core";
 import "@vue-flow/core/dist/style.css";
 import "@vue-flow/core/dist/theme-default.css";
-import { computed, onMounted, onUnmounted, ref, shallowRef, useTemplateRef, watch } from "vue";
+import {
+  computed,
+  nextTick,
+  onMounted,
+  onUnmounted,
+  ref,
+  shallowRef,
+  useTemplateRef,
+  watch,
+} from "vue";
 import CanvasPrompt, { type PromptRequest } from "./CanvasPrompt.vue";
 import ContextMenu, { type MenuItem, type MenuRequest } from "./ContextMenu.vue";
 import DiagramNodeView, { type NodeData } from "./DiagramNode.vue";
@@ -38,17 +47,53 @@ interface Point {
 
 const { names, files, diagram, layout, open, apply, load } = useDiagram();
 const { dark, toggle: toggleTheme } = useTheme();
+
+// Below `md` the sidebar is a bottom sheet over the canvas, closed by default.
+const small = matchMedia("(max-width: 767px)");
+const storedSidebar = localStorage.getItem("sidebar");
+const sidebarOpen = ref(storedSidebar ? storedSidebar === "open" : !small.matches);
+function setSidebar(visible: boolean) {
+  sidebarOpen.value = visible;
+  localStorage.setItem("sidebar", visible ? "open" : "closed");
+}
 const auto = shallowRef<{ name: string; positions: Layout }>();
 const selection = ref<string>();
 const flow = shallowRef<VueFlowStore>();
 const canvas = useTemplateRef("canvas");
 const fileInput = useTemplateRef("fileInput");
+const sidebar = useTemplateRef("sidebar");
 const prompt = shallowRef<PromptRequest>();
 const menu = shallowRef<MenuRequest>();
 // Remounts the prompt for every request so it starts with fresh text.
 const promptKey = ref(0);
 // Last pointer position over the canvas, used to place prompts opened by keyboard.
 let pointer: Point = { x: 0, y: 0 };
+
+// On small screens, tapping an element opens the sheet and keeps the element visible above it.
+watch(selection, async (target) => {
+  sidebar.value?.scrollTo({ top: 0 });
+  if (!target || !small.matches) return;
+  sidebarOpen.value = true;
+  await nextTick();
+  revealAboveSheet(target);
+});
+
+function revealAboveSheet(target: string) {
+  const store = flow.value;
+  const node = store?.findNode(findEdge(target)?.source ?? target);
+  const sheetTop = sidebar.value?.getBoundingClientRect().top;
+  if (!store || !node || sheetTop === undefined) return;
+  const element = canvas.value?.querySelector(`.vue-flow__node[data-id="${node.id}"]`);
+  const rect = element?.getBoundingClientRect();
+  if (rect && rect.top >= 0 && rect.bottom <= sheetTop) return;
+  const zoom = Math.max(store.viewport.value.zoom, 0.8);
+  const sheetHeight = window.innerHeight - sheetTop;
+  void store.setCenter(
+    node.position.x + node.dimensions.width / 2,
+    node.position.y + node.dimensions.height / 2 + sheetHeight / 2 / zoom,
+    { zoom, duration: 300 },
+  );
+}
 
 // Re-run ELK only when the graph structure changes, not on label edits or moves.
 const structure = computed(() =>
@@ -298,6 +343,8 @@ function toggleMark(target: string) {
 // Selects an element from the sidebar and brings it into view.
 function focus(target: string) {
   selection.value = target;
+  // Small screens reveal the selection above the sheet instead (see the selection watcher).
+  if (small.matches) return;
   const edge = findEdge(target);
   const ids = edge ? [edge.source, edge.target] : [target];
   void flow.value?.fitView({ nodes: ids, duration: 300, maxZoom: 1.2, padding: 0.4 });
@@ -440,7 +487,7 @@ function closePopovers() {
 
 <template>
   <div
-    class="h-screen flex font-sans text-slate-800 dark:bg-slate-950 dark:text-slate-100"
+    class="h-dvh flex font-sans text-slate-800 dark:bg-slate-950 dark:text-slate-100"
     @dragover.prevent
     @drop.prevent="onDrop"
   >
@@ -505,12 +552,36 @@ function closePopovers() {
         @change="onFiles"
       />
       <CanvasLegend v-if="ready" />
+      <button
+        v-if="!sidebarOpen"
+        type="button"
+        class="button absolute bottom-3 right-3 z-10 flex items-center gap-2 shadow-sm md:bottom-auto md:top-3"
+        aria-label="Show sidebar"
+        @click="setSidebar(true)"
+      >
+        <svg
+          class="size-5"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <rect width="18" height="18" x="3" y="3" rx="2" />
+          <path d="M15 3v18" />
+        </svg>
+        Sidebar
+      </button>
       <ContextMenu v-if="menu" :request="menu" @close="menu = undefined" />
       <CanvasPrompt v-if="prompt" :key="promptKey" :request="prompt" @close="prompt = undefined" />
     </div>
 
     <aside
-      class="w-80 shrink-0 flex flex-col gap-6 overflow-y-auto border-l border-slate-200 bg-slate-50 px-4 pt-4 text-sm dark:border-slate-800 dark:bg-slate-900"
+      v-show="sidebarOpen"
+      ref="sidebar"
+      class="fixed inset-x-0 bottom-0 z-30 flex max-h-[65dvh] flex-col gap-6 overflow-y-auto rounded-t-xl border-t border-slate-200 bg-slate-50 px-4 pt-4 text-sm shadow-lg dark:border-slate-800 dark:bg-slate-900 md:static md:max-h-none md:w-80 md:shrink-0 md:rounded-none md:border-t-0 md:border-l md:shadow-none"
     >
       <header class="grid gap-1.5">
         <div class="relative flex items-center gap-2">
@@ -546,6 +617,27 @@ function closePopovers() {
                 />
               </template>
               <path v-else d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            class="button grid size-9 place-items-center px-0"
+            aria-label="Hide sidebar"
+            title="Hide sidebar"
+            @click="setSidebar(false)"
+          >
+            <svg
+              class="size-5"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <rect width="18" height="18" x="3" y="3" rx="2" />
+              <path d="M15 3v18" />
             </svg>
           </button>
         </div>

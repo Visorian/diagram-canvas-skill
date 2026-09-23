@@ -16,6 +16,14 @@
   opacity: 1;
 }
 
+/* Touch has no hover: dots show on the selected node and are easier to hit. */
+@media (pointer: coarse) {
+  .vue-flow__handle {
+    width: 18px;
+    height: 18px;
+  }
+}
+
 .dark .vue-flow__edge-path,
 .dark .vue-flow__connection-path {
   stroke: #64748b;
