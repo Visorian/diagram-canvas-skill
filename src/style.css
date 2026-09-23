@@ -1,6 +1,14 @@
+/* Dots only show where they're usable, so they don't cover the arrowheads. */
 .vue-flow__handle {
   width: 10px;
   height: 10px;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.vue-flow__node:hover .vue-flow__handle,
+.vue-flow__node.selected .vue-flow__handle {
+  opacity: 1;
 }
 
 .dark .vue-flow__edge-path,

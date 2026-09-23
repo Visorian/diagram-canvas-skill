@@ -53,18 +53,14 @@ function onFocusout(event: FocusEvent) {
     <p class="muted truncate text-xs">{{ request.title }}</p>
     <input ref="input" v-model="text" class="field" :placeholder="request.placeholder" />
     <div class="flex items-center justify-between gap-2">
-      <div
-        v-if="request.kind"
-        class="flex shrink-0 overflow-hidden rounded-md border border-slate-300 text-sm dark:border-slate-600"
-        role="radiogroup"
-      >
+      <div v-if="request.kind" class="segmented shrink-0" role="radiogroup">
         <button
           v-for="option in ['note', 'question'] as const"
           :key="option"
           type="button"
           role="radio"
           class="px-3 py-1 capitalize"
-          :class="kind === option ? 'bg-slate-200 font-medium dark:bg-slate-600' : 'muted'"
+          :class="kind === option ? 'segment-on' : 'segment-off'"
           :aria-checked="kind === option"
           @click="setKind(option)"
         >

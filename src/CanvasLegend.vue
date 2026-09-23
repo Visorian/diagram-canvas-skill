@@ -6,21 +6,17 @@ import { kindStyles } from "./kinds";
 const open = ref(localStorage.getItem("legend") !== "closed");
 watch(open, (value) => localStorage.setItem("legend", value ? "open" : "closed"));
 
+function onToggle(event: Event) {
+  if (event.target instanceof HTMLDetailsElement) open.value = event.target.open;
+}
+
 const swatch = "h-4 w-7 shrink-0 rounded border-2";
 </script>
 
 <template>
-  <div class="popover absolute bottom-3 left-3 z-5 w-64 text-xs">
-    <button
-      type="button"
-      class="flex w-full items-center justify-between gap-4 px-3 py-2 font-medium"
-      :aria-expanded="open"
-      @click="open = !open"
-    >
-      Legend
-      <span class="muted" aria-hidden="true">{{ open ? "▾" : "▸" }}</span>
-    </button>
-    <div v-if="open" class="grid gap-3 px-3 pb-3">
+  <details class="popover absolute bottom-3 left-3 z-5 w-64 text-xs" :open @toggle="onToggle">
+    <summary class="disclosure px-3 py-2">Legend</summary>
+    <div class="grid gap-3 px-3 pb-3">
       <div class="grid gap-1.5">
         <p class="muted">Fill and border: what an element is</p>
         <div v-for="kind in kinds" :key="kind" class="flex items-center gap-2">
@@ -70,5 +66,5 @@ const swatch = "h-4 w-7 shrink-0 rounded border-2";
         </div>
       </div>
     </div>
-  </div>
+  </details>
 </template>
