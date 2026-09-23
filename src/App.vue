@@ -20,7 +20,8 @@ import ContextMenu, { type MenuItem, type MenuRequest } from "./ContextMenu.vue"
 import DiagramNodeView, { type NodeData } from "./DiagramNode.vue";
 import CanvasLegend from "./CanvasLegend.vue";
 import HelpPopover from "./HelpPopover.vue";
-import NotesPanel from "./NotesPanel.vue";
+import NoteComposer from "./NoteComposer.vue";
+import NoteItem from "./NoteItem.vue";
 import { kindStyles } from "./kinds";
 import {
   edgeId,
@@ -79,6 +80,24 @@ const diagramNotes = computed(() =>
   notes.value.filter((note) => note.target === undefined && note.kind === "note"),
 );
 const notesFor = (target: string) => notes.value.filter((note) => note.target === target);
+const questionsFor = (target: string, done: boolean) =>
+  notesFor(target).filter((note) => note.kind === "question" && note.done === done);
+const plainNotesFor = (target: string) => notesFor(target).filter((note) => note.kind === "note");
+
+// Chat prompts that point the agent at what the user is looking at.
+const agentPrompt = computed(() => {
+  const file = `diagrams/${files.value?.name ?? ""}.txt`;
+  const target = selection.value;
+  return target
+    ? `Look at "${labelFor(target)}" (${target}) in ${file}, including its notes and open questions.`
+    : `Look at ${file}: check what I marked and the open questions.`;
+});
+const copied = ref(false);
+async function copyPrompt() {
+  await navigator.clipboard.writeText(agentPrompt.value);
+  copied.value = true;
+  setTimeout(() => (copied.value = false), 2000);
+}
 
 const ready = computed(() => files.value !== undefined && auto.value?.name === files.value.name);
 const pinned = computed(() => Object.keys(layout.value).length > 0);
@@ -494,81 +513,123 @@ function closePopovers() {
           @click="selection = undefined"
         >
           ← Overview
-          <span class="muted">({{ marks.size }} marked, {{ openQuestions.length }} open)</span>
+          <span class="muted"
+            >({{ marks.size }} marked, {{ openQuestions.length }} open questions)</span
+          >
         </button>
 
-        <section :key="selection" class="grid gap-5">
-          <div class="flex items-start justify-between gap-2">
-            <div class="min-w-0">
-              <h2 class="text-lg font-semibold [overflow-wrap:anywhere]">
-                {{ labelFor(selection) }}
-              </h2>
-              <p v-if="selectedNode" class="muted text-xs">
-                {{ kindStyles[selectedNode.kind].name }} ·
-                <code class="code">{{ selectedNode.id }}</code>
-              </p>
-              <p v-else class="muted text-xs">
-                Connection · <code class="code">{{ selection }}</code>
-              </p>
+        <section :key="selection" class="grid gap-6">
+          <header class="grid gap-3">
+            <div class="flex items-start justify-between gap-2">
+              <div class="min-w-0">
+                <h2 class="text-lg font-semibold [overflow-wrap:anywhere]">
+                  {{ labelFor(selection) }}
+                </h2>
+                <p class="muted text-xs">
+                  {{ selectedNode ? kindStyles[selectedNode.kind].name : "Connection" }} ·
+                  <code class="code">{{ selection }}</code>
+                </p>
+              </div>
+              <button
+                type="button"
+                class="button shrink-0"
+                :class="
+                  marks.has(selection) &&
+                  'border-amber-500 bg-amber-50 dark:border-amber-500 dark:bg-amber-950'
+                "
+                :aria-pressed="marks.has(selection)"
+                title="Marks highlight elements for you and the agent. Press M on the canvas."
+                @click="toggleMark(selection)"
+              >
+                {{ marks.has(selection) ? "Marked" : "Mark" }}
+              </button>
             </div>
-            <button
-              type="button"
-              class="button shrink-0"
-              :class="
-                marks.has(selection) &&
-                'border-amber-500 bg-amber-50 dark:border-amber-500 dark:bg-amber-950'
-              "
-              :aria-pressed="marks.has(selection)"
-              @click="toggleMark(selection)"
-            >
-              {{ marks.has(selection) ? "Marked" : "Mark" }}
+            <button type="button" class="link justify-self-start text-xs" @click="copyPrompt">
+              {{
+                copied ? "Copied, paste it into the chat" : "Copy a prompt about this for the agent"
+              }}
             </button>
+          </header>
+
+          <div class="grid gap-2">
+            <h3 class="font-semibold">
+              Open questions ({{ questionsFor(selection, false).length }})
+            </h3>
+            <ul v-if="questionsFor(selection, false).length > 0" class="grid gap-3">
+              <NoteItem
+                v-for="note in questionsFor(selection, false)"
+                :key="note.text"
+                :note
+                @apply="apply"
+              />
+            </ul>
+            <p v-else class="muted text-sm">Nothing to clarify here yet.</p>
+            <details v-if="questionsFor(selection, true).length > 0" class="text-sm">
+              <summary class="muted cursor-pointer">
+                Resolved ({{ questionsFor(selection, true).length }})
+              </summary>
+              <ul class="mt-2 grid gap-3">
+                <NoteItem
+                  v-for="note in questionsFor(selection, true)"
+                  :key="note.text"
+                  :note
+                  @apply="apply"
+                />
+              </ul>
+            </details>
           </div>
 
           <div class="grid gap-2">
-            <h3 class="text-sm font-medium">
-              Notes and questions ({{ notesFor(selection).length }})
-            </h3>
-            <NotesPanel :notes="notesFor(selection)" :target="selection" form @apply="apply" />
+            <h3 class="font-semibold">Notes ({{ plainNotesFor(selection).length }})</h3>
+            <ul v-if="plainNotesFor(selection).length > 0" class="grid gap-3">
+              <NoteItem
+                v-for="note in plainNotesFor(selection)"
+                :key="note.text"
+                :note
+                @apply="apply"
+              />
+            </ul>
+            <p v-else class="muted text-sm">No notes yet.</p>
           </div>
 
-          <div v-if="selectedNode" class="grid gap-2 text-sm">
-            <h3 class="font-medium">Connections</h3>
-            <p v-if="incoming.length + outgoing.length === 0" class="muted">None yet.</p>
-            <ul class="grid gap-1">
-              <li v-for="edge in incoming" :key="edgeId(edge)" class="flex gap-1.5">
-                <span class="muted" aria-label="from">←</span>
-                <button type="button" class="link text-left" @click="focus(edge.source)">
-                  {{ labelFor(edge.source) }}
-                </button>
-                <button
-                  v-if="edge.label"
-                  type="button"
-                  class="muted hover:underline"
-                  @click="focus(edgeId(edge))"
-                >
-                  {{ edge.label }}
-                </button>
-              </li>
-              <li v-for="edge in outgoing" :key="edgeId(edge)" class="flex gap-1.5">
-                <span class="muted" aria-label="to">→</span>
-                <button type="button" class="link text-left" @click="focus(edge.target)">
-                  {{ labelFor(edge.target) }}
-                </button>
-                <button
-                  v-if="edge.label"
-                  type="button"
-                  class="muted hover:underline"
-                  @click="focus(edgeId(edge))"
-                >
-                  {{ edge.label }}
-                </button>
-              </li>
-            </ul>
-          </div>
-          <div v-else-if="selectedEdge" class="grid gap-1 text-sm">
-            <h3 class="font-medium">Connects</h3>
-            <p>
+          <NoteComposer :target="selection" @apply="apply" />
+
+          <div class="grid gap-2 border-t border-slate-200 pt-4 text-sm dark:border-slate-800">
+            <h3 class="muted font-medium">Connections</h3>
+            <template v-if="selectedNode">
+              <p v-if="incoming.length + outgoing.length === 0" class="muted">None yet.</p>
+              <ul class="grid gap-1">
+                <li v-for="edge in incoming" :key="edgeId(edge)" class="flex gap-1.5">
+                  <span class="muted" aria-label="from">←</span>
+                  <button type="button" class="link text-left" @click="focus(edge.source)">
+                    {{ labelFor(edge.source) }}
+                  </button>
+                  <button
+                    v-if="edge.label"
+                    type="button"
+                    class="muted hover:underline"
+                    @click="focus(edgeId(edge))"
+                  >
+                    {{ edge.label }}
+                  </button>
+                </li>
+                <li v-for="edge in outgoing" :key="edgeId(edge)" class="flex gap-1.5">
+                  <span class="muted" aria-label="to">→</span>
+                  <button type="button" class="link text-left" @click="focus(edge.target)">
+                    {{ labelFor(edge.target) }}
+                  </button>
+                  <button
+                    v-if="edge.label"
+                    type="button"
+                    class="muted hover:underline"
+                    @click="focus(edgeId(edge))"
+                  >
+                    {{ edge.label }}
+                  </button>
+                </li>
+              </ul>
+            </template>
+            <p v-else-if="selectedEdge">
               <button type="button" class="link" @click="focus(selectedEdge.source)">
                 {{ labelFor(selectedEdge.source) }}
               </button>
@@ -579,10 +640,10 @@ function closePopovers() {
             </p>
           </div>
 
-          <div class="grid gap-2">
-            <h3 class="text-sm font-medium">Details</h3>
-            <template v-if="selectedNode">
-              <div class="grid grid-cols-[1fr_auto] gap-2">
+          <details class="text-sm">
+            <summary class="muted cursor-pointer font-medium">Edit details</summary>
+            <div class="mt-3 grid gap-3">
+              <div v-if="selectedNode" class="grid grid-cols-[1fr_auto] gap-2">
                 <input
                   class="field"
                   aria-label="Label"
@@ -600,71 +661,101 @@ function closePopovers() {
                   </option>
                 </select>
               </div>
-            </template>
-            <input
-              v-else-if="selectedEdge"
-              class="field"
-              aria-label="Label"
-              placeholder="Label"
-              :value="selectedEdge.label"
-              @change="updateEdgeLabel"
-            />
-          </div>
-
-          <button
-            type="button"
-            class="justify-self-start text-sm text-red-600 hover:underline dark:text-red-400"
-            @click="remove(selection)"
-          >
-            {{ selectedNode ? "Delete node" : "Delete connection" }}
-          </button>
+              <input
+                v-else-if="selectedEdge"
+                class="field"
+                aria-label="Label"
+                placeholder="Label"
+                :value="selectedEdge.label"
+                @change="updateEdgeLabel"
+              />
+              <button
+                type="button"
+                class="justify-self-start text-red-600 hover:underline dark:text-red-400"
+                @click="remove(selection)"
+              >
+                {{ selectedNode ? "Delete node" : "Delete connection" }}
+              </button>
+            </div>
+          </details>
         </section>
       </template>
 
       <template v-else-if="files">
-        <section v-if="marks.size > 0" class="grid gap-2">
+        <section
+          class="grid gap-2 rounded-lg border border-slate-200 bg-white p-3 text-sm dark:border-slate-700 dark:bg-slate-800"
+        >
+          <h2 class="font-semibold">Working with the agent</h2>
+          <p class="muted">
+            Mark elements and add questions or notes here. They're saved to files the agent reads,
+            so in the chat you only need to point at them, for example "look at what I marked".
+          </p>
+          <button type="button" class="button justify-self-start" @click="copyPrompt">
+            {{ copied ? "Copied, paste it into the chat" : "Copy prompt" }}
+          </button>
+        </section>
+
+        <section class="grid gap-2">
           <div class="flex items-baseline justify-between">
             <h2 class="font-semibold">Marked ({{ marks.size }})</h2>
-            <button type="button" class="link text-sm" @click="apply([{ type: 'clear-marks' }])">
+            <button
+              v-if="marks.size > 0"
+              type="button"
+              class="link text-sm"
+              @click="apply([{ type: 'clear-marks' }])"
+            >
               Clear
             </button>
           </div>
-          <ul class="grid gap-1 text-sm">
+          <ul v-if="marks.size > 0" class="grid gap-1 text-sm">
             <li v-for="mark in marks" :key="mark">
               <button type="button" class="link text-left" @click="focus(mark)">
                 {{ labelFor(mark) }}
               </button>
             </li>
           </ul>
+          <p v-else class="muted text-sm">Select an element and press M to point at it.</p>
         </section>
 
         <section class="grid gap-2">
           <h2 class="font-semibold">Open questions ({{ openQuestions.length }})</h2>
-          <NotesPanel
-            v-if="openQuestions.length > 0"
-            :notes="openQuestions"
-            :label-for="labelFor"
-            @apply="apply"
-            @select="focus"
-          />
-          <p v-else class="muted text-sm">None yet.</p>
-          <details v-if="resolvedQuestions.length > 0" class="text-sm">
-            <summary class="muted cursor-pointer">
-              Resolved ({{ resolvedQuestions.length }})
-            </summary>
-            <NotesPanel
-              class="mt-2"
-              :notes="resolvedQuestions"
+          <ul v-if="openQuestions.length > 0" class="grid gap-3">
+            <NoteItem
+              v-for="note in openQuestions"
+              :key="`${note.target} ${note.text}`"
+              :note
               :label-for="labelFor"
               @apply="apply"
               @select="focus"
             />
+          </ul>
+          <p v-else class="muted text-sm">Nothing to clarify yet.</p>
+          <details v-if="resolvedQuestions.length > 0" class="text-sm">
+            <summary class="muted cursor-pointer">
+              Resolved ({{ resolvedQuestions.length }})
+            </summary>
+            <ul class="mt-2 grid gap-3">
+              <NoteItem
+                v-for="note in resolvedQuestions"
+                :key="`${note.target} ${note.text}`"
+                :note
+                :label-for="labelFor"
+                @apply="apply"
+                @select="focus"
+              />
+            </ul>
           </details>
         </section>
 
         <section class="grid gap-2">
-          <h2 class="font-semibold">Diagram notes ({{ diagramNotes.length }})</h2>
-          <NotesPanel :notes="diagramNotes" form @apply="apply" />
+          <h2 class="font-semibold">Whole diagram</h2>
+          <p class="muted -mt-1 text-xs">
+            Notes and questions that aren't about one element. Its questions appear above.
+          </p>
+          <ul v-if="diagramNotes.length > 0" class="grid gap-3">
+            <NoteItem v-for="note in diagramNotes" :key="note.text" :note @apply="apply" />
+          </ul>
+          <NoteComposer @apply="apply" />
         </section>
       </template>
 
