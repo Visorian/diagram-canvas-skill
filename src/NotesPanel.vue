@@ -14,6 +14,13 @@ const { target, form = false } = defineProps<{
 const emit = defineEmits<{ apply: [ops: Op[]]; select: [target: string] }>();
 const draft = ref("");
 
+// Splits `code` spans out of note text so they render as code.
+const segments = (text: string) =>
+  text.split(/(`[^`]+`)/).map((part, index) => ({
+    code: index % 2 === 1,
+    text: index % 2 === 1 ? part.slice(1, -1) : part,
+  }));
+
 function add(kind: Note["kind"]) {
   const text = draft.value.trim();
   if (!text) return;
@@ -53,7 +60,11 @@ function add(kind: Note["kind"]) {
           >
             {{ labelFor(note.target) }}:
           </button>
-          {{ note.text }}
+          {{ " " }}
+          <template v-for="(segment, index) in segments(note.text)" :key="index">
+            <code v-if="segment.code" class="code">{{ segment.text }}</code>
+            <template v-else>{{ segment.text }}</template>
+          </template>
         </span>
         <button
           type="button"

@@ -5,6 +5,7 @@ export default defineConfig({
   shortcuts: {
     muted: "text-slate-500 dark:text-slate-400",
     link: "text-indigo-700 hover:underline dark:text-indigo-300",
+    code: "rounded bg-slate-200/70 px-1 font-mono text-[0.85em] dark:bg-slate-700/70",
     popover:
       "rounded-lg border border-slate-200 bg-white shadow-lg dark:border-slate-700 dark:bg-slate-800",
     field:
