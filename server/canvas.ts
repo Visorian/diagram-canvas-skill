@@ -1,4 +1,4 @@
-// Single-file canvas: `canvas.js [dir] [--port 5173] [--host 127.0.0.1]` or `canvas.js status [dir]`.
+// Single-file canvas: `canvas.js [dir] [--port 7766] [--host 127.0.0.1]` or `canvas.js status [dir]`.
 import { createServer } from "node:http";
 import { resolve } from "node:path";
 import { parseArgs } from "node:util";
@@ -9,7 +9,8 @@ import { diagramStatus } from "./status.ts";
 const { values, positionals } = parseArgs({
   allowPositionals: true,
   options: {
-    port: { type: "string", default: "5173" },
+    // Off the usual Vite ports, so it runs next to a project's own dev server.
+    port: { type: "string", default: "7766" },
     host: { type: "string", default: "127.0.0.1" },
   },
 });

@@ -6,7 +6,9 @@ import { parseNotes } from "../src/diagram/notes.ts";
 
 export async function diagramStatus(dir: string) {
   const read = (file: string) => readFile(join(dir, file), "utf8").catch(() => undefined);
-  const names = (await readdir(dir)).flatMap((file) => {
+  // A project without a diagrams folder simply has no diagrams yet.
+  const listing = await readdir(dir).catch(() => []);
+  const names = listing.flatMap((file) => {
     const match = partPattern.exec(file);
     return match?.[1] && match[2] === ".txt" ? [match[1]] : [];
   });
@@ -40,7 +42,10 @@ export async function diagramStatus(dir: string) {
   );
 
   return {
-    text: reports.map(({ lines }) => lines.join("\n")).join("\n"),
+    text:
+      reports.length === 0
+        ? `No diagrams in ${dir} yet.`
+        : reports.map(({ lines }) => lines.join("\n")).join("\n"),
     failed: reports.some(({ failed }) => failed),
   };
 }

@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "bun run build:canvas && bun run build:viewer",
+    "build": "bun run build:canvas && bun run build:viewer && bun run build:skill",
     "preview": "vite preview",
     "typecheck": "vue-tsc --noEmit",
     "lint": "oxlint --deny-warnings",
@@ -14,7 +14,9 @@
     "check": "bun run fmt:check && bun run lint && bun run typecheck && bun run diagrams && bun run build",
     "diagrams": "bun scripts/diagrams.ts",
     "build:canvas": "vite build --outDir dist/app && bun build server/canvas.ts --target=node --outfile dist/canvas.js && rm -r dist/app",
-    "build:viewer": "vite build --mode viewer --outDir dist/viewer && mv dist/viewer/index.html dist/viewer.html && rm -r dist/viewer"
+    "build:viewer": "vite build --mode viewer --outDir dist/viewer && mv dist/viewer/index.html dist/viewer.html && rm -r dist/viewer",
+    "build:skill": "mkdir -p dist/skill && cp skill/SKILL.md dist/canvas.js dist/skill/",
+    "install:skill": "bun run build && mkdir -p \"${CLAUDE_SKILLS_DIR:-$HOME/.claude/skills}/diagram-canvas\" && cp dist/skill/* \"${CLAUDE_SKILLS_DIR:-$HOME/.claude/skills}/diagram-canvas/\""
   },
   "dependencies": {
     "@vue-flow/core": "1.48.2",

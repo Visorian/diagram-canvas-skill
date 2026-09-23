@@ -1,54 +1,22 @@
-# Diagrams
+# Diagram canvas
 
-Architecture diagrams live in `diagrams/<name>.txt`. `bun run dev` serves an editable canvas at
-`http://localhost:5173/?diagram=<name>`. File edits show up live on the canvas, and canvas edits
-are written back to the files.
+This repo builds the diagram canvas: a Vue Flow app where a user and an agent iterate on
+architecture and workflow diagrams stored as plain text files.
+
+The diagram format and the agent workflow are documented in [`skill/SKILL.md`](skill/SKILL.md),
+which is also the skill that ships with the build. Follow it for the diagrams in `diagrams/`,
+with these commands for this repo:
+
+- `bun run dev` serves the canvas for `diagrams/` at `http://localhost:5173/?diagram=<name>`.
+- `bun run diagrams` prints the status (counts, errors, marks, open questions).
 
 ## Build artifacts
 
-`bun run build` writes two single files to `dist/`:
+`bun run build` writes to `dist/`:
 
-- `canvas.js`: the editable canvas with its server, for use outside this repo.
-  `node canvas.js [dir] [--port 5173] [--host 127.0.0.1]` serves the diagrams in `dir`
-  (default `./diagrams`), and `node canvas.js status [dir]` prints the status described below.
-  Bun works as well as Node.
+- `canvas.js`: the editable canvas with its server. `node canvas.js [dir] [--port 7766]
+[--host 127.0.0.1]` serves `dir` (default `./diagrams`), `node canvas.js status [dir]`
+  prints the status. Bun works as well as Node.
 - `viewer.html`: read-only viewer. Open it in a browser and choose or drop a diagram's files.
-
-## Working with diagrams
-
-Run `bun run diagrams` first: it prints every diagram's counts, validation errors, marked elements
-and open questions. Run it again after editing.
-
-## Model: `diagrams/<name>.txt`
-
-```
-# comment
-orders: Orders Service          node, kind defaults to service
-orders-db: Orders DB [db]       kinds: service, db, queue, ext, ui
-orders -> orders-db: SQL        edge, label optional; unknown ids become service nodes
-```
-
-Ids use letters, digits, `_` and `-`. One edge per source and target pair; its id is
-`source->target`.
-
-Declare nodes in reading order (for workflows, the order of steps). The auto layout follows the
-file order, and edges pointing back to an earlier node are drawn as loop-backs.
-
-## Notes and questions: `diagrams/<name>.notes.md`
-
-```
-- [ ] @orders Who owns payment retries?    open question
-- [x] @orders Who owns payment retries?    resolved question
-- @gateway->auth Token cache TTL is 5 min  note
-- [ ] Split search into its own service?   no @target: about the whole diagram
-```
-
-Open questions track points to discuss later. Add your own questions here instead of asking
-them only in chat, and resolve them with `[x]` once decided.
-
-## Marks: `diagrams/<name>.marks`
-
-One node or edge id per line. When the user says "this" or "what I marked", read the marks.
-Write marks to point the user at elements. Marks are not committed.
-
-Don't read or edit `diagrams/*.layout.json`; it holds positions from the canvas.
+- `skill/`: `SKILL.md` plus `canvas.js`. `bun run install:skill` builds and copies it to
+  `~/.claude/skills/diagram-canvas/` (or `$CLAUDE_SKILLS_DIR/diagram-canvas/`).
