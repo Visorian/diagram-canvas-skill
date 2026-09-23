@@ -25,7 +25,8 @@ async function toggle() {
 </script>
 
 <template>
-  <div class="relative">
+  <!-- Positions against the parent row, so the panel stays inside the sidebar. -->
+  <div>
     <button
       type="button"
       class="button grid size-9 place-items-center px-0"
@@ -53,7 +54,7 @@ async function toggle() {
       v-if="open"
       ref="panel"
       tabindex="-1"
-      class="popover absolute right-0 top-11 z-20 grid w-64 gap-1.5 p-3 text-sm outline-none"
+      class="popover absolute right-0 top-full z-20 mt-2 grid w-64 gap-1.5 p-3 text-sm outline-none"
       @focusout="open = false"
       @keydown.esc="open = false"
     >

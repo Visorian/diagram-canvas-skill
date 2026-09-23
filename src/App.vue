@@ -470,7 +470,7 @@ function closePopovers() {
       class="w-80 shrink-0 flex flex-col gap-6 overflow-y-auto border-l border-slate-200 bg-slate-50 px-4 pt-4 text-sm dark:border-slate-800 dark:bg-slate-900"
     >
       <header class="grid gap-1.5">
-        <div class="flex items-center gap-2">
+        <div class="relative flex items-center gap-2">
           <SelectMenu
             class="flex-1"
             label="Diagram"
