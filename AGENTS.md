@@ -19,6 +19,9 @@ orders -> orders-db: SQL        edge, label optional; unknown ids become service
 Ids use letters, digits, `_` and `-`. One edge per source and target pair; its id is
 `source->target`.
 
+Declare nodes in reading order (for workflows, the order of steps). The auto layout follows the
+file order, and edges pointing back to an earlier node are drawn as loop-backs.
+
 ## Notes and questions: `diagrams/<name>.notes.md`
 
 ```

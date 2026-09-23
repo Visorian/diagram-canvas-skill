@@ -41,7 +41,10 @@ function add(kind: Note["kind"]) {
           @change="emit('apply', [{ type: 'resolve-note', note, done: !note.done }])"
         />
         <span v-else class="w-3.5 text-center text-slate-400">–</span>
-        <span class="min-w-0 flex-1" :class="note.done && 'text-slate-400 line-through'">
+        <span
+          class="min-w-0 flex-1 [overflow-wrap:anywhere]"
+          :class="note.done && 'text-slate-400 line-through'"
+        >
           <button
             v-if="labelFor && note.target"
             type="button"

@@ -14,6 +14,9 @@ export async function autoLayout(diagram: Diagram): Promise<Layout> {
       "elk.direction": "DOWN",
       "elk.spacing.nodeNode": "48",
       "elk.layered.spacing.nodeNodeBetweenLayers": "72",
+      // Declaration order in the file is the reading order; edges against it are loop-backs.
+      "elk.layered.considerModelOrder.strategy": "NODES_AND_EDGES",
+      "elk.layered.cycleBreaking.strategy": "MODEL_ORDER",
     },
     children: diagram.nodes.map((node) => ({ id: node.id, ...nodeSize })),
     edges: diagram.edges.map((edge) => ({

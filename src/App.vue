@@ -406,6 +406,7 @@ function closePopovers() {
         :edges
         :delete-key-code="null"
         :zoom-on-double-click="false"
+        :min-zoom="0.2"
         fit-view-on-init
         @init="flow = $event"
         @node-click="select($event.node.id)"
