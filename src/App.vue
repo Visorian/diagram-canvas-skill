@@ -28,6 +28,7 @@ import { edgeId, kinds, type DiagramNode, type Layout, type Position } from "./d
 import { autoLayout, nodeSize } from "./diagram/layout";
 import { parseNotes, type Note } from "./diagram/notes";
 import { useDiagram } from "./diagram/useDiagram";
+import { readOnly } from "./mode";
 import { useTheme } from "./theme";
 
 interface Point {
@@ -35,12 +36,13 @@ interface Point {
   y: number;
 }
 
-const { names, files, diagram, layout, open, apply } = useDiagram();
+const { names, files, diagram, layout, open, apply, load } = useDiagram();
 const { dark, toggle: toggleTheme } = useTheme();
 const auto = shallowRef<{ name: string; positions: Layout }>();
 const selection = ref<string>();
 const flow = shallowRef<VueFlowStore>();
 const canvas = useTemplateRef("canvas");
+const fileInput = useTemplateRef("fileInput");
 const prompt = shallowRef<PromptRequest>();
 const menu = shallowRef<MenuRequest>();
 // Remounts the prompt for every request so it starts with fresh text.
@@ -345,6 +347,7 @@ function paneMenu(point: Point): MenuItem[] {
 
 function openMenu(event: MouseEvent | TouchEvent, items: MenuItem[]) {
   event.preventDefault();
+  if (readOnly) return;
   prompt.value = undefined;
   menu.value = { ...place(eventPoint(event), { width: 208, height: 36 * items.length }), items };
 }
@@ -357,13 +360,13 @@ function onElementMenu(target: string, event: MouseEvent | TouchEvent) {
 function onElementDoubleClick({ event, ...element }: NodeMouseEvent | EdgeMouseEvent) {
   const target = "node" in element ? element.node.id : element.edge.id;
   selection.value = target;
-  promptNote(target, "note", eventPoint(event));
+  if (!readOnly) promptNote(target, "note", eventPoint(event));
 }
 
 function onCanvasDoubleClick(event: MouseEvent) {
   const onPane =
     event.target instanceof Element && event.target.classList.contains("vue-flow__pane");
-  if (onPane) promptNote(undefined, "note", eventPoint(event));
+  if (onPane && !readOnly) promptNote(undefined, "note", eventPoint(event));
 }
 
 function onDragStop({ nodes: moved }: NodeDragEvent) {
@@ -404,6 +407,8 @@ function onKeydown(event: KeyboardEvent) {
       menu.value = undefined;
       prompt.value = undefined;
     } else selection.value = undefined;
+  } else if (readOnly) {
+    // The viewer has no editing shortcuts.
   } else if (key === "n" || key === "q") {
     event.preventDefault();
     promptNote(target, key === "q" ? "question" : "note", pointer);
@@ -418,6 +423,15 @@ function trackPointer(event: PointerEvent) {
   pointer = { x: event.clientX, y: event.clientY };
 }
 
+// Viewer only: diagrams come from files the user opens or drops.
+function onFiles(event: Event) {
+  if (event.target instanceof HTMLInputElement && event.target.files) void load(event.target.files);
+}
+
+function onDrop(event: DragEvent) {
+  if (readOnly && event.dataTransfer) void load(event.dataTransfer.files);
+}
+
 function closePopovers() {
   menu.value = undefined;
   prompt.value = undefined;
@@ -425,7 +439,11 @@ function closePopovers() {
 </script>
 
 <template>
-  <div class="h-screen flex font-sans text-slate-800 dark:bg-slate-950 dark:text-slate-100">
+  <div
+    class="h-screen flex font-sans text-slate-800 dark:bg-slate-950 dark:text-slate-100"
+    @dragover.prevent
+    @drop.prevent="onDrop"
+  >
     <div
       ref="canvas"
       class="relative flex-1 min-w-0"
@@ -437,7 +455,10 @@ function closePopovers() {
         :key="files?.name"
         :nodes
         :edges
+        :class="readOnly && 'read-only'"
         :delete-key-code="null"
+        :nodes-draggable="!readOnly"
+        :nodes-connectable="!readOnly"
         :zoom-on-double-click="false"
         :min-zoom="0.2"
         fit-view-on-init
@@ -458,9 +479,31 @@ function closePopovers() {
           <DiagramNodeView v-bind="props" />
         </template>
       </VueFlow>
+      <div v-else-if="readOnly && !files" class="grid h-full place-items-center p-6">
+        <div class="grid max-w-sm gap-3 text-center text-sm">
+          <h1 class="heading text-lg">Open a diagram</h1>
+          <p class="muted">
+            Choose or drop its files: <code class="code">name.txt</code> and, if present,
+            <code class="code">name.notes.md</code>, <code class="code">name.layout.json</code> and
+            <code class="code">name.marks</code>.
+          </p>
+          <button type="button" class="button justify-self-center" @click="fileInput?.click()">
+            Choose files
+          </button>
+        </div>
+      </div>
       <p v-else-if="names.length === 0" class="muted p-6">
         Create <code>diagrams/&lt;name&gt;.txt</code> to start.
       </p>
+      <input
+        v-if="readOnly"
+        ref="fileInput"
+        type="file"
+        multiple
+        accept=".txt,.md,.json,.marks"
+        class="hidden"
+        @change="onFiles"
+      />
       <CanvasLegend v-if="ready" />
       <ContextMenu v-if="menu" :request="menu" @close="menu = undefined" />
       <CanvasPrompt v-if="prompt" :key="promptKey" :request="prompt" @close="prompt = undefined" />
@@ -478,7 +521,7 @@ function closePopovers() {
             :options="diagramOptions"
             @update:model-value="(name) => void open(name)"
           />
-          <HelpPopover />
+          <HelpPopover v-if="!readOnly" />
           <button
             type="button"
             class="button grid size-9 place-items-center px-0"
@@ -506,7 +549,11 @@ function closePopovers() {
             </svg>
           </button>
         </div>
-        <p class="muted text-xs">
+        <p v-if="readOnly" class="muted text-xs">
+          {{ files ? `${files.name}.txt · ` : "" }}
+          <button type="button" class="link" @click="fileInput?.click()">Open files</button>
+        </p>
+        <p v-else class="muted text-xs">
           diagrams/{{ files?.name }}.txt ·
           <button
             type="button"
@@ -521,7 +568,8 @@ function closePopovers() {
             {{ copied ? "Copied" : "Copy prompt" }}
           </button>
         </p>
-        <p v-if="!selection" class="muted text-xs">
+        <p v-if="readOnly" class="muted text-xs">Read-only view of the diagram files.</p>
+        <p v-else-if="!selection" class="muted text-xs">
           Mark elements and add questions; the agent reads them from these files.
         </p>
       </header>
@@ -555,6 +603,7 @@ function closePopovers() {
               </p>
             </div>
             <button
+              v-if="!readOnly"
               type="button"
               class="button shrink-0"
               :class="
@@ -622,9 +671,13 @@ function closePopovers() {
             </div>
 
             <p v-if="notesFor(selection).length === 0" class="muted">
-              Nothing here yet. Add a question to discuss it with the agent.
+              {{
+                readOnly
+                  ? "No notes or questions."
+                  : "Nothing here yet. Add a question to discuss it with the agent."
+              }}
             </p>
-            <NoteComposer :target="selection" @apply="apply" />
+            <NoteComposer v-if="!readOnly" :target="selection" @apply="apply" />
           </div>
 
           <div
@@ -673,7 +726,7 @@ function closePopovers() {
             </ul>
           </div>
 
-          <details class="border-t border-slate-200 pt-4 dark:border-slate-800">
+          <details v-if="!readOnly" class="border-t border-slate-200 pt-4 dark:border-slate-800">
             <summary class="disclosure">Edit details</summary>
             <div class="mt-3 grid gap-3">
               <div v-if="selectedNode" class="grid grid-cols-[1fr_auto] gap-2">
@@ -718,7 +771,7 @@ function closePopovers() {
               Marked <span class="muted font-normal">{{ marks.size }}</span>
             </h2>
             <button
-              v-if="marks.size > 0"
+              v-if="marks.size > 0 && !readOnly"
               type="button"
               class="link"
               @click="apply([{ type: 'clear-marks' }])"
@@ -733,7 +786,9 @@ function closePopovers() {
               </button>
             </li>
           </ul>
-          <p v-else class="muted">Select an element and press M to point at it.</p>
+          <p v-else class="muted">
+            {{ readOnly ? "Nothing marked." : "Select an element and press M to point at it." }}
+          </p>
         </section>
 
         <section class="grid gap-2">
@@ -768,12 +823,12 @@ function closePopovers() {
           </details>
         </section>
 
-        <section class="grid gap-2">
+        <section v-if="!readOnly || diagramNotes.length > 0" class="grid gap-2">
           <h2 class="heading">Notes about the whole diagram</h2>
           <ul v-if="diagramNotes.length > 0" class="grid gap-2">
             <NoteItem v-for="note in diagramNotes" :key="note.text" :note @apply="apply" />
           </ul>
-          <NoteComposer @apply="apply" />
+          <NoteComposer v-if="!readOnly" @apply="apply" />
         </section>
       </template>
 
@@ -782,6 +837,7 @@ function closePopovers() {
       </ul>
 
       <div
+        v-if="!readOnly"
         class="sticky bottom-0 -mx-4 mt-auto flex gap-2 border-t border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-800 dark:bg-slate-900"
       >
         <button

@@ -40,6 +40,11 @@ export interface DiagramFiles extends DiagramState {
   name: string;
 }
 
+// A diagram is stored as `<name><suffix>` files; only the model is required.
+export const partSuffixes = [".txt", ".layout.json", ".notes.md", ".marks"] as const;
+export type PartSuffix = (typeof partSuffixes)[number];
+export const partPattern = /^([\w-]+)(\.txt|\.layout\.json|\.notes\.md|\.marks)$/;
+
 export type Op =
   | { type: "upsert-node"; node: DiagramNode; position?: Position }
   | { type: "remove-node"; id: string }
@@ -136,6 +141,28 @@ const isPosition = (value: unknown): value is Position =>
 
 export const isLayout = (value: unknown): value is Layout =>
   isRecord(value) && Object.values(value).every(isPosition);
+
+export function toDiagramFiles(
+  name: string,
+  parts: Partial<Record<PartSuffix, string | undefined>>,
+): DiagramFiles {
+  let layout: unknown = {};
+  try {
+    layout = JSON.parse(parts[".layout.json"] ?? "{}");
+  } catch {
+    // A broken layout only loses pinned positions; auto layout still places everything.
+  }
+  return {
+    name,
+    source: parts[".txt"] ?? "",
+    layout: isLayout(layout) ? layout : {},
+    notes: parts[".notes.md"] ?? "",
+    marks: (parts[".marks"] ?? "")
+      .split("\n")
+      .map((mark) => mark.trim())
+      .filter((mark) => mark !== ""),
+  };
+}
 
 export const isDiagramFiles = (value: unknown): value is DiagramFiles =>
   isRecord(value) &&

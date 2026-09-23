@@ -5,14 +5,16 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "bun run build:canvas && bun run build:viewer",
     "preview": "vite preview",
     "typecheck": "vue-tsc --noEmit",
     "lint": "oxlint --deny-warnings",
     "fmt": "oxfmt",
     "fmt:check": "oxfmt --check",
     "check": "bun run fmt:check && bun run lint && bun run typecheck && bun run diagrams && bun run build",
-    "diagrams": "bun scripts/diagrams.ts"
+    "diagrams": "bun scripts/diagrams.ts",
+    "build:canvas": "vite build --outDir dist/app && bun build server/canvas.ts --target=node --outfile dist/canvas.js && rm -r dist/app",
+    "build:viewer": "vite build --mode viewer --outDir dist/viewer && mv dist/viewer/index.html dist/viewer.html && rm -r dist/viewer"
   },
   "dependencies": {
     "@vue-flow/core": "1.48.2",

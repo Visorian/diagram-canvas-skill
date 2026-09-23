@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { Op } from "./diagram/format";
 import type { Note } from "./diagram/notes";
+import { readOnly } from "./mode";
 
 const { note } = defineProps<{
   note: Note;
@@ -49,7 +50,7 @@ const resolve = (done: boolean) => emit("apply", [{ type: "resolve-note", note, 
           <template v-else>{{ segment.text }}</template>
         </template>
       </p>
-      <div class="flex gap-4 text-xs">
+      <div v-if="!readOnly" class="flex gap-4 text-xs">
         <button
           v-if="note.kind === 'question'"
           type="button"

@@ -4,6 +4,18 @@ Architecture diagrams live in `diagrams/<name>.txt`. `bun run dev` serves an edi
 `http://localhost:5173/?diagram=<name>`. File edits show up live on the canvas, and canvas edits
 are written back to the files.
 
+## Build artifacts
+
+`bun run build` writes two single files to `dist/`:
+
+- `canvas.js`: the editable canvas with its server, for use outside this repo.
+  `node canvas.js [dir] [--port 5173] [--host 127.0.0.1]` serves the diagrams in `dir`
+  (default `./diagrams`), and `node canvas.js status [dir]` prints the status described below.
+  Bun works as well as Node.
+- `viewer.html`: read-only viewer. Open it in a browser and choose or drop a diagram's files.
+
+## Working with diagrams
+
 Run `bun run diagrams` first: it prints every diagram's counts, validation errors, marked elements
 and open questions. Run it again after editing.
 

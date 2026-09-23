@@ -6,6 +6,11 @@
   transition: opacity 0.15s;
 }
 
+/* Hidden but still laid out: edges are positioned from the handles. */
+.read-only .vue-flow__handle {
+  visibility: hidden;
+}
+
 .vue-flow__node:hover .vue-flow__handle,
 .vue-flow__node.selected .vue-flow__handle {
   opacity: 1;
