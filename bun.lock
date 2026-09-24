@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "vue-vapor-playground",
+      "name": "diagram-canvas-skill",
       "dependencies": {
         "@vue-flow/core": "1.48.2",
         "elkjs": "0.12.0",

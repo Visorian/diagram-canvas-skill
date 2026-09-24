@@ -1,4 +1,4 @@
-# Diagram canvas
+# Diagram canvas skill
 
 This repo builds the diagram canvas: a Vue Flow app where a user and an agent iterate on
 architecture and workflow diagrams stored as plain text files.
