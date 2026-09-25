@@ -62,6 +62,26 @@ const flow = shallowRef<VueFlowStore>();
 const canvas = useTemplateRef("canvas");
 const fileInput = useTemplateRef("fileInput");
 const sidebar = useTemplateRef("sidebar");
+const sidebarWidth = ref(320);
+
+function resizeSidebar(width: number) {
+  sidebarWidth.value = Math.max(256, Math.min(640, width));
+}
+
+function onResizeStart(event: PointerEvent) {
+  if (event.button === 0 && event.currentTarget instanceof Element)
+    event.currentTarget.setPointerCapture(event.pointerId);
+}
+
+function onResizeMove(event: PointerEvent) {
+  if (
+    event.currentTarget instanceof Element &&
+    event.currentTarget.hasPointerCapture(event.pointerId) &&
+    sidebar.value
+  )
+    resizeSidebar(sidebar.value.getBoundingClientRect().right - event.clientX);
+}
+
 const prompt = shallowRef<PromptRequest>();
 const menu = shallowRef<MenuRequest>();
 // Remounts the prompt for every request so it starts with fresh text.
@@ -616,15 +636,35 @@ function closePopovers() {
       <CanvasPrompt v-if="prompt" :key="promptKey" :request="prompt" @close="prompt = undefined" />
     </div>
 
+    <div
+      v-show="sidebarOpen"
+      class="hidden w-1.5 shrink-0 cursor-col-resize touch-none select-none hover:bg-slate-300 focus-visible:bg-slate-300 dark:hover:bg-slate-600 dark:focus-visible:bg-slate-600 md:block"
+      role="separator"
+      aria-label="Resize sidebar"
+      aria-orientation="vertical"
+      aria-controls="sidebar"
+      :aria-valuenow="sidebarWidth"
+      :aria-valuemin="256"
+      :aria-valuemax="640"
+      tabindex="0"
+      @pointerdown.prevent="onResizeStart"
+      @pointermove="onResizeMove"
+      @keydown.left.prevent="resizeSidebar(sidebarWidth + 16)"
+      @keydown.right.prevent="resizeSidebar(sidebarWidth - 16)"
+    />
     <aside
       v-show="sidebarOpen"
+      id="sidebar"
       ref="sidebar"
-      class="fixed inset-x-0 bottom-0 z-30 flex flex-col gap-6 overflow-y-auto border-t border-slate-200 bg-slate-50 px-4 text-sm shadow-lg dark:border-slate-800 dark:bg-slate-900 md:static md:pt-4 md:h-auto md:max-h-none md:w-80 md:shrink-0 md:rounded-none md:border-t-0 md:border-l md:shadow-none"
+      class="fixed inset-x-0 bottom-0 z-30 flex flex-col gap-6 overflow-y-auto border-t border-slate-200 bg-slate-50 px-4 text-sm shadow-lg dark:border-slate-800 dark:bg-slate-900 md:static md:pt-4 md:h-auto md:max-h-none md:w-[var(--sidebar-width)] md:shrink-0 md:rounded-none md:border-t-0 md:border-l md:shadow-none"
       :class="[
         sheetFull ? 'h-dvh' : 'max-h-[65dvh] rounded-t-xl',
         sheetOffset === 0 && 'transition-transform duration-200',
       ]"
-      :style="sheetOffset > 0 ? { transform: `translateY(${sheetOffset}px)` } : undefined"
+      :style="{
+        '--sidebar-width': `${sidebarWidth}px`,
+        transform: sheetOffset > 0 ? `translateY(${sheetOffset}px)` : undefined,
+      }"
     >
       <div
         class="sticky top-0 z-10 -mx-4 -mb-3 flex touch-none select-none justify-center bg-slate-50 px-4 pb-2 pt-2.5 dark:bg-slate-900 md:hidden"
