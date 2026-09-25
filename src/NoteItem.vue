@@ -1,10 +1,13 @@
 <script setup lang="ts">
-import type { Op } from "./diagram/format";
+import { computed } from "vue";
+import type { Op, QuestionTag } from "./diagram/format";
 import type { Note } from "./diagram/notes";
 import { readOnly } from "./mode";
+import SelectMenu from "./SelectMenu.vue";
 
-const { note } = defineProps<{
+const { note, tags } = defineProps<{
   note: Note;
+  tags: QuestionTag[];
   // Shows the entry's target as a link, for lists that span the whole diagram.
   labelFor?: (target: string) => string;
 }>();
@@ -18,6 +21,11 @@ const segments = (text: string) =>
   }));
 
 const resolve = (done: boolean) => emit("apply", [{ type: "resolve-note", note, done }]);
+const tagColor = computed(() => tags.find(({ name }) => name === note.tag)?.color);
+const tagOptions = computed(() => [
+  { value: "", label: "No tag" },
+  ...tags.map(({ name, color }) => ({ value: name, label: name, color })),
+]);
 </script>
 
 <template>
@@ -50,7 +58,28 @@ const resolve = (done: boolean) => emit("apply", [{ type: "resolve-note", note, 
           <template v-else>{{ segment.text }}</template>
         </template>
       </p>
+      <span
+        v-if="note.tag && (readOnly || tags.length === 0)"
+        class="muted flex items-center gap-1.5 text-xs"
+      >
+        <span
+          class="size-2.5 shrink-0 rounded-sm border border-slate-500/30"
+          :style="{ backgroundColor: tagColor }"
+          aria-hidden="true"
+        />
+        {{ note.tag }}
+      </span>
       <div v-if="!readOnly" class="flex gap-4 text-xs">
+        <SelectMenu
+          v-if="note.kind === 'question' && tags.length > 0"
+          class="min-w-24 max-w-36"
+          label="Question tag"
+          :model-value="note.tag ?? ''"
+          :options="tagOptions"
+          @update:model-value="
+            (tag) => emit('apply', [{ type: 'tag-note', note, tag: tag || undefined }])
+          "
+        />
         <button
           v-if="note.kind === 'question'"
           type="button"

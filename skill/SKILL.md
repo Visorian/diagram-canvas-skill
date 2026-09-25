@@ -18,6 +18,7 @@ Diagrams are plain text files in the project's `diagrams/` folder. The user work
 
 ```
 # comment
+# tag: risk #d97706
 orders: Orders Service          node, kind defaults to service
 orders-db: Orders DB [db]       kinds: service, db, queue, ext, ui
 orders -> orders-db: SQL        edge, label optional; unknown ids become service nodes
@@ -25,6 +26,7 @@ orders -> orders-db: SQL        edge, label optional; unknown ids become service
 
 - Kinds: `service` for a service or step, `db` for data or state, `queue` for queues, topics and event buses, `ui` for entry points like apps or CLI commands, `ext` for systems outside the diagram.
 - Ids use letters, digits, `_` and `-`. An edge's id is `source->target`, so there is one edge per pair.
+- Define each question tag once in the model as `# tag: name #rrggbb`. Names use the same characters as ids. Choose any six-digit hex color. Questions can use only tags defined in their diagram.
 - Declare nodes in reading order, for workflows the order of the steps. The auto layout follows the file order, and edges back to earlier nodes are drawn as loop-backs.
 - Keep labels to about 20 characters. Put details, commands and `file:line` references in notes.
 
@@ -33,11 +35,13 @@ orders -> orders-db: SQL        edge, label optional; unknown ids become service
 ```
 - [ ] @orders Who owns payment retries?    open question
 - [x] @orders Who owns payment retries?    resolved question
+- [ ] #risk @orders Can payment retry?     question tagged with risk
 - @gateway->auth Token cache TTL is 5 min  note
 - [ ] Split search into its own service?   no @target: about the whole diagram
 ```
 
 One entry per line, without line breaks inside. Other lines are kept as written. Record open points as questions instead of only mentioning them in chat, and resolve them with `[x]` once they are decided.
+For a tagged question, put `#name` after the checkbox and before `@target`, if present. Tags are optional; ordinary notes do not use them.
 
 ## Workflow
 

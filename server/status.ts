@@ -19,8 +19,12 @@ export async function diagramStatus(dir: string) {
         [".txt", ".notes.md", ".marks"].map((suffix) => read(`${name}${suffix}`)),
       );
       const files = toDiagramFiles(name, { ".txt": source, ".notes.md": notes, ".marks": marks });
-      const { nodes, edges, errors } = parseDiagram(files.source);
+      const { nodes, edges, tags, errors } = parseDiagram(files.source);
       const entries = parseNotes(files.notes);
+      const tagNames = new Set(tags.map((tag) => tag.name));
+      const unknownTags = [
+        ...new Set(entries.map((note) => note.tag).filter((tag) => tag && !tagNames.has(tag))),
+      ];
       const labels = new Map(nodes.map((node) => [node.id, node.label]));
       const targets = new Set([...labels.keys(), ...edges.map(edgeId)]);
       const describe = (target: string) =>
@@ -34,10 +38,14 @@ export async function diagramStatus(dir: string) {
         `${name}: ${nodes.length} nodes, ${edges.length} edges, ${open.length} open questions, ${entries.length - open.length} other notes`,
         ...errors.map((error) => `  error: ${error}`),
         ...(files.marks.length > 0 ? [`  marked: ${files.marks.map(describe).join(", ")}`] : []),
-        ...open.map((note) => `  ? ${note.target ? `@${describe(note.target)} ` : ""}${note.text}`),
+        ...open.map(
+          (note) =>
+            `  ? ${note.tag ? `#${note.tag} ` : ""}${note.target ? `@${describe(note.target)} ` : ""}${note.text}`,
+        ),
         ...[...new Set(unknown)].map((target) => `  unknown target: ${target}`),
+        ...unknownTags.map((tag) => `  unknown tag: ${tag}`),
       ];
-      return { lines, failed: errors.length > 0 };
+      return { lines, failed: errors.length > 0 || unknownTags.length > 0 };
     }),
   );
 

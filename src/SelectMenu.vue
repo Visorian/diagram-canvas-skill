@@ -4,7 +4,7 @@ import { computed, nextTick, ref, useId, useTemplateRef } from "vue";
 
 const model = defineModel<T>({ required: true });
 const { options, label } = defineProps<{
-  options: readonly { value: T; label: string }[];
+  options: readonly { value: T; label: string; color?: string }[];
   label: string;
 }>();
 
@@ -14,9 +14,8 @@ const active = ref(0);
 const root = useTemplateRef("root");
 const button = useTemplateRef("button");
 const list = useTemplateRef("list");
-const current = computed(
-  () => options.find((option) => option.value === model.value)?.label ?? model.value,
-);
+const selected = computed(() => options.find((option) => option.value === model.value));
+const current = computed(() => selected.value?.label ?? model.value);
 
 async function show() {
   active.value = Math.max(
@@ -71,7 +70,15 @@ function onFocusout(event: FocusEvent) {
       @click="open ? (open = false) : show()"
       @keydown.down.prevent="show"
     >
-      <span class="truncate">{{ current }}</span>
+      <span class="flex min-w-0 items-center gap-1.5">
+        <span
+          v-if="selected?.color"
+          class="size-2.5 shrink-0 rounded-sm border border-slate-500/30"
+          :style="{ backgroundColor: selected.color }"
+          aria-hidden="true"
+        />
+        <span class="truncate">{{ current }}</span>
+      </span>
       <svg
         class="muted size-4 shrink-0"
         viewBox="0 0 24 24"
@@ -107,7 +114,15 @@ function onFocusout(event: FocusEvent) {
         @mousedown.prevent
         @click="choose(option.value)"
       >
-        <span class="truncate">{{ option.label }}</span>
+        <span class="flex min-w-0 items-center gap-1.5">
+          <span
+            v-if="option.color"
+            class="size-2.5 shrink-0 rounded-sm border border-slate-500/30"
+            :style="{ backgroundColor: option.color }"
+            aria-hidden="true"
+          />
+          <span class="truncate">{{ option.label }}</span>
+        </span>
         <svg
           v-if="option.value === model"
           class="size-4 shrink-0 text-indigo-600 dark:text-indigo-300"

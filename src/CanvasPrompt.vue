@@ -1,5 +1,6 @@
 <script lang="ts">
 import type { Note } from "./diagram/notes";
+import type { QuestionTag } from "./diagram/format";
 
 // Small inline form on the canvas; `kind` adds the note/question toggle.
 export interface PromptRequest {
@@ -9,24 +10,31 @@ export interface PromptRequest {
   placeholder: string;
   initial?: string;
   kind?: Note["kind"];
-  submit: (text: string, kind: Note["kind"]) => void;
+  tags?: QuestionTag[];
+  submit: (text: string, kind: Note["kind"], tag?: string) => void;
 }
 </script>
 
 <script setup lang="ts">
 import { onMounted, ref, useTemplateRef } from "vue";
+import SelectMenu from "./SelectMenu.vue";
 
 const { request } = defineProps<{ request: PromptRequest }>();
 const emit = defineEmits<{ close: [] }>();
 const text = ref(request.initial ?? "");
 const kind = ref<Note["kind"]>(request.kind ?? "note");
+const tag = ref("");
 const root = useTemplateRef("root");
 const input = useTemplateRef("input");
 
 onMounted(() => input.value?.select());
 
 function submit() {
-  request.submit(text.value.trim(), kind.value);
+  request.submit(
+    text.value.trim(),
+    kind.value,
+    kind.value === "question" ? tag.value || undefined : undefined,
+  );
   emit("close");
 }
 
@@ -52,6 +60,15 @@ function onFocusout(event: FocusEvent) {
   >
     <p class="muted truncate text-xs">{{ request.title }}</p>
     <input ref="input" v-model="text" class="field" :placeholder="request.placeholder" />
+    <SelectMenu
+      v-if="request.kind && kind === 'question' && request.tags?.length"
+      v-model="tag"
+      label="Question tag"
+      :options="[
+        { value: '', label: 'No tag' },
+        ...request.tags.map(({ name, color }) => ({ value: name, label: name, color })),
+      ]"
+    />
     <div class="flex items-center justify-between gap-2">
       <div v-if="request.kind" class="segmented shrink-0" role="radiogroup">
         <button

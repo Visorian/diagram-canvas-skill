@@ -1,4 +1,4 @@
-import { applyNoteOp, type NoteOp } from "./notes.ts";
+import { applyNoteOp, type Note, type NoteOp } from "./notes.ts";
 
 // Line format, one statement per line:
 //   id: Label [kind]         node, kind defaults to "service"
@@ -22,7 +22,13 @@ export interface DiagramEdge {
 export interface Diagram {
   nodes: DiagramNode[];
   edges: DiagramEdge[];
+  tags: QuestionTag[];
   errors: string[];
+}
+
+export interface QuestionTag {
+  name: string;
+  color: string;
 }
 
 export type Position = [x: number, y: number];
@@ -64,6 +70,7 @@ type Line =
 const idPattern = String.raw`[\w-]+`;
 const edgePattern = new RegExp(String.raw`^(${idPattern})\s*->\s*(${idPattern})\s*(?::\s*(.*))?$`);
 const nodePattern = new RegExp(String.raw`^(${idPattern})\s*:\s*(.*?)\s*(?:\[(\w+)\])?$`);
+const tagPattern = /^# tag: ([\w-]+) (#[\da-fA-F]{6})$/;
 
 export const edgeId = (edge: Pick<DiagramEdge, "source" | "target">) =>
   `${edge.source}->${edge.target}`;
@@ -111,13 +118,19 @@ export function parseDiagram(source: string): Diagram {
   const errors: string[] = [];
   const nodes = new Map<string, DiagramNode>();
   const edges = new Map<string, DiagramEdge>();
-  for (const line of parseLines(source, errors)) {
+  const tags = new Map<string, QuestionTag>();
+  for (const [index, line] of parseLines(source, errors).entries()) {
     if (line.type === "node") {
       if (nodes.has(line.node.id)) errors.push(`duplicate node "${line.node.id}"`);
       nodes.set(line.node.id, line.node);
     } else if (line.type === "edge") {
       if (edges.has(edgeId(line.edge))) errors.push(`duplicate edge "${edgeId(line.edge)}"`);
       edges.set(edgeId(line.edge), line.edge);
+    } else if (line.text.trim().startsWith("# tag:")) {
+      const match = tagPattern.exec(line.text.trim());
+      if (!match?.[1] || !match[2]) errors.push(`line ${index + 1}: invalid tag definition`);
+      else if (tags.has(match[1])) errors.push(`line ${index + 1}: duplicate tag "${match[1]}"`);
+      else tags.set(match[1], { name: match[1], color: match[2] });
     }
   }
   for (const edge of edges.values()) {
@@ -125,7 +138,12 @@ export function parseDiagram(source: string): Diagram {
       if (!nodes.has(id)) nodes.set(id, { id, label: id, kind: "service" });
     }
   }
-  return { nodes: [...nodes.values()], edges: [...edges.values()], errors };
+  return {
+    nodes: [...nodes.values()],
+    edges: [...edges.values()],
+    tags: [...tags.values()],
+    errors,
+  };
 }
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -173,13 +191,14 @@ export const isDiagramFiles = (value: unknown): value is DiagramFiles =>
   value.marks.every(isTarget) &&
   isLayout(value.layout);
 
-const isNote = (value: unknown) =>
+const isNote = (value: unknown): value is Note =>
   isRecord(value) &&
   (value.kind === "note" || value.kind === "question") &&
   (value.target === undefined || isTarget(value.target)) &&
   isText(value.text) &&
   typeof value.text === "string" &&
   value.text.trim() !== "" &&
+  (value.tag === undefined || (value.kind === "question" && isId(value.tag))) &&
   typeof value.done === "boolean";
 
 function isOp(value: unknown): value is Op {
@@ -213,6 +232,12 @@ function isOp(value: unknown): value is Op {
       return isNote(value.note);
     case "resolve-note":
       return isNote(value.note) && typeof value.done === "boolean";
+    case "tag-note":
+      return (
+        isNote(value.note) &&
+        value.note.kind === "question" &&
+        (value.tag === undefined || isId(value.tag))
+      );
     default:
       return false;
   }

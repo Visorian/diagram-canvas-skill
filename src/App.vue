@@ -165,16 +165,35 @@ watch(
 const notes = computed(() => parseNotes(files.value?.notes ?? ""));
 const marks = computed(() => new Set(files.value?.marks));
 const isOpen = (note: Note) => note.kind === "question" && !note.done;
-const openQuestions = computed(() => notes.value.filter(isOpen));
+const tagFilter = ref("");
+const tagOptions = computed(() => [
+  { value: "", label: "All tags" },
+  { value: "#", label: "Untagged" },
+  ...diagram.value.tags.map(({ name, color }) => ({ value: name, label: name, color })),
+]);
+watch(
+  () => diagram.value.tags,
+  (tags) => {
+    if (tagFilter.value !== "#" && !tags.some(({ name }) => name === tagFilter.value))
+      tagFilter.value = "";
+  },
+);
+const matchesTag = (note: Note) =>
+  tagFilter.value === "" || (tagFilter.value === "#" ? !note.tag : note.tag === tagFilter.value);
+const openQuestions = computed(() =>
+  notes.value.filter((note) => isOpen(note) && matchesTag(note)),
+);
 const resolvedQuestions = computed(() =>
-  notes.value.filter((note) => note.kind === "question" && note.done),
+  notes.value.filter((note) => note.kind === "question" && note.done && matchesTag(note)),
 );
 const diagramNotes = computed(() =>
   notes.value.filter((note) => note.target === undefined && note.kind === "note"),
 );
 const notesFor = (target: string) => notes.value.filter((note) => note.target === target);
 const questionsFor = (target: string, done: boolean) =>
-  notesFor(target).filter((note) => note.kind === "question" && note.done === done);
+  notesFor(target).filter(
+    (note) => note.kind === "question" && note.done === done && matchesTag(note),
+  );
 const plainNotesFor = (target: string) => notesFor(target).filter((note) => note.kind === "note");
 
 // Chat prompts that point the agent at what the user is looking at.
@@ -317,7 +336,10 @@ function uniqueId(label: string) {
 function openPrompt(point: Point, request: Omit<PromptRequest, "x" | "y">) {
   menu.value = undefined;
   promptKey.value++;
-  prompt.value = { ...place(point, { width: 288, height: 130 }), ...request };
+  prompt.value = {
+    ...place(point, { width: 288, height: request.tags?.length ? 174 : 130 }),
+    ...request,
+  };
 }
 
 function promptNote(target: string | undefined, kind: Note["kind"], point: Point) {
@@ -325,10 +347,12 @@ function promptNote(target: string | undefined, kind: Note["kind"], point: Point
     title: target ? labelFor(target) : "Whole diagram",
     placeholder: kind === "question" ? "What should we clarify?" : "Add a note",
     kind,
-    submit: (text, chosen) => {
+    tags: diagram.value.tags,
+    submit: (text, chosen, tag) => {
       if (!text) return;
       const note: Note = { kind: chosen, text, done: false };
       if (target) note.target = target;
+      if (chosen === "question" && tag) note.tag = tag;
       void apply([{ type: "add-note", note }]);
     },
   });
@@ -830,23 +854,31 @@ function closePopovers() {
 
           <div class="grid gap-4">
             <div
-              v-if="
-                questionsFor(selection, false).length + questionsFor(selection, true).length > 0
-              "
+              v-if="notesFor(selection).some((note) => note.kind === 'question')"
               class="grid gap-2"
             >
-              <h3 class="heading">
-                Open questions
-                <span class="muted font-normal">{{ questionsFor(selection, false).length }}</span>
-              </h3>
-              <ul class="grid gap-2">
+              <div class="flex items-center justify-between gap-2">
+                <h3 class="heading">
+                  Open questions
+                  <span class="muted font-normal">{{ questionsFor(selection, false).length }}</span>
+                </h3>
+                <SelectMenu
+                  v-model="tagFilter"
+                  class="w-32 shrink-0"
+                  label="Filter questions by tag"
+                  :options="tagOptions"
+                />
+              </div>
+              <ul v-if="questionsFor(selection, false).length > 0" class="grid gap-2">
                 <NoteItem
                   v-for="note in questionsFor(selection, false)"
                   :key="note.text"
                   :note
+                  :tags="diagram.tags"
                   @apply="apply"
                 />
               </ul>
+              <p v-else class="muted">No matching open questions.</p>
               <details v-if="questionsFor(selection, true).length > 0">
                 <summary class="disclosure font-normal">
                   Resolved {{ questionsFor(selection, true).length }}
@@ -856,6 +888,7 @@ function closePopovers() {
                     v-for="note in questionsFor(selection, true)"
                     :key="note.text"
                     :note
+                    :tags="diagram.tags"
                     @apply="apply"
                   />
                 </ul>
@@ -871,6 +904,7 @@ function closePopovers() {
                   v-for="note in plainNotesFor(selection)"
                   :key="note.text"
                   :note
+                  :tags="diagram.tags"
                   @apply="apply"
                 />
               </ul>
@@ -883,7 +917,12 @@ function closePopovers() {
                   : "Nothing here yet. Add a question to discuss it with the agent."
               }}
             </p>
-            <NoteComposer v-if="!readOnly" :target="selection" @apply="apply" />
+            <NoteComposer
+              v-if="!readOnly"
+              :target="selection"
+              :tags="diagram.tags"
+              @apply="apply"
+            />
           </div>
 
           <div
@@ -998,20 +1037,31 @@ function closePopovers() {
         </section>
 
         <section class="grid gap-2">
-          <h2 class="heading">
-            Open questions <span class="muted font-normal">{{ openQuestions.length }}</span>
-          </h2>
+          <div class="flex items-center justify-between gap-2">
+            <h2 class="heading">
+              Open questions <span class="muted font-normal">{{ openQuestions.length }}</span>
+            </h2>
+            <SelectMenu
+              v-model="tagFilter"
+              class="w-32 shrink-0"
+              label="Filter questions by tag"
+              :options="tagOptions"
+            />
+          </div>
           <ul v-if="openQuestions.length > 0" class="grid gap-2">
             <NoteItem
               v-for="note in openQuestions"
               :key="`${note.target} ${note.text}`"
               :note
+              :tags="diagram.tags"
               :label-for="labelFor"
               @apply="apply"
               @select="focus"
             />
           </ul>
-          <p v-else class="muted">Nothing to clarify yet.</p>
+          <p v-else class="muted">
+            {{ tagFilter ? "No matching open questions." : "Nothing to clarify yet." }}
+          </p>
           <details v-if="resolvedQuestions.length > 0">
             <summary class="disclosure font-normal">
               Resolved {{ resolvedQuestions.length }}
@@ -1021,6 +1071,7 @@ function closePopovers() {
                 v-for="note in resolvedQuestions"
                 :key="`${note.target} ${note.text}`"
                 :note
+                :tags="diagram.tags"
                 :label-for="labelFor"
                 @apply="apply"
                 @select="focus"
@@ -1032,9 +1083,15 @@ function closePopovers() {
         <section v-if="!readOnly || diagramNotes.length > 0" class="grid gap-2">
           <h2 class="heading">Notes about the whole diagram</h2>
           <ul v-if="diagramNotes.length > 0" class="grid gap-2">
-            <NoteItem v-for="note in diagramNotes" :key="note.text" :note @apply="apply" />
+            <NoteItem
+              v-for="note in diagramNotes"
+              :key="note.text"
+              :note
+              :tags="diagram.tags"
+              @apply="apply"
+            />
           </ul>
-          <NoteComposer v-if="!readOnly" @apply="apply" />
+          <NoteComposer v-if="!readOnly" :tags="diagram.tags" @apply="apply" />
         </section>
       </template>
 
