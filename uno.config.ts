@@ -4,6 +4,7 @@ export default defineConfig({
   presets: [presetWind4()],
   shortcuts: {
     muted: "text-slate-500 dark:text-slate-400",
+    swatch: "size-2.5 shrink-0 rounded-sm border border-slate-500/30",
     heading: "font-semibold text-slate-950 dark:text-white",
     link: "text-indigo-700 hover:underline dark:text-indigo-300",
     code: "rounded bg-slate-200/70 px-1 font-mono text-[0.85em] [overflow-wrap:anywhere] dark:bg-slate-700/70",

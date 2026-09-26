@@ -1,13 +1,12 @@
 <script setup lang="ts">
-import { computed } from "vue";
-import type { Op, QuestionTag } from "./diagram/format";
+import { computed, inject } from "vue";
+import type { Op } from "./diagram/format";
 import type { Note } from "./diagram/notes";
 import { readOnly } from "./mode";
-import SelectMenu from "./SelectMenu.vue";
+import TagSelect, { tagsKey } from "./TagSelect.vue";
 
-const { note, tags } = defineProps<{
+const { note } = defineProps<{
   note: Note;
-  tags: QuestionTag[];
   // Shows the entry's target as a link, for lists that span the whole diagram.
   labelFor?: (target: string) => string;
 }>();
@@ -20,12 +19,10 @@ const segments = (text: string) =>
     text: index % 2 === 1 ? part.slice(1, -1) : part,
   }));
 
-const resolve = (done: boolean) => emit("apply", [{ type: "resolve-note", note, done }]);
-const tagColor = computed(() => tags.find(({ name }) => name === note.tag)?.color);
-const tagOptions = computed(() => [
-  { value: "", label: "No tag" },
-  ...tags.map(({ name, color }) => ({ value: name, label: name, color })),
-]);
+const update = (patch: Partial<Note>) =>
+  emit("apply", [{ type: "update-note", note, next: { ...note, ...patch } }]);
+const tags = inject(tagsKey);
+const tagColor = computed(() => tags?.value.find(({ name }) => name === note.tag)?.color);
 </script>
 
 <template>
@@ -59,26 +56,18 @@ const tagOptions = computed(() => [
         </template>
       </p>
       <span
-        v-if="note.tag && (readOnly || tags.length === 0)"
+        v-if="note.tag && (readOnly || !tags?.length)"
         class="muted flex items-center gap-1.5 text-xs"
       >
-        <span
-          class="size-2.5 shrink-0 rounded-sm border border-slate-500/30"
-          :style="{ backgroundColor: tagColor }"
-          aria-hidden="true"
-        />
+        <span class="swatch" :style="{ backgroundColor: tagColor }" aria-hidden="true" />
         {{ note.tag }}
       </span>
       <div v-if="!readOnly" class="flex gap-4 text-xs">
-        <SelectMenu
-          v-if="note.kind === 'question' && tags.length > 0"
+        <TagSelect
+          v-if="note.kind === 'question'"
           class="min-w-24 max-w-36"
-          label="Question tag"
           :model-value="note.tag ?? ''"
-          :options="tagOptions"
-          @update:model-value="
-            (tag) => emit('apply', [{ type: 'tag-note', note, tag: tag || undefined }])
-          "
+          @update:model-value="(tag) => update({ tag: tag || undefined })"
         />
         <button
           v-if="note.kind === 'question'"
@@ -87,7 +76,7 @@ const tagOptions = computed(() => [
           :title="
             note.done ? 'Move back to open questions' : 'Mark as answered; it stays in the history'
           "
-          @click="resolve(!note.done)"
+          @click="update({ done: !note.done })"
         >
           {{ note.done ? "Reopen" : "Resolve" }}
         </button>

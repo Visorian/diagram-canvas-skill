@@ -26,7 +26,7 @@ orders -> orders-db: SQL        edge, label optional; unknown ids become service
 
 - Kinds: `service` for a service or step, `db` for data or state, `queue` for queues, topics and event buses, `ui` for entry points like apps or CLI commands, `ext` for systems outside the diagram.
 - Ids use letters, digits, `_` and `-`. An edge's id is `source->target`, so there is one edge per pair.
-- Define each question tag once in the model as `# tag: name #rrggbb`. Names use the same characters as ids. Choose any six-digit hex color. Questions can use only tags defined in their diagram.
+- Define question tags once in the model as `# tag: name #rrggbb`, named like ids, with any hex color.
 - Declare nodes in reading order, for workflows the order of the steps. The auto layout follows the file order, and edges back to earlier nodes are drawn as loop-backs.
 - Keep labels to about 20 characters. Put details, commands and `file:line` references in notes.
 
@@ -40,8 +40,7 @@ orders -> orders-db: SQL        edge, label optional; unknown ids become service
 - [ ] Split search into its own service?   no @target: about the whole diagram
 ```
 
-One entry per line, without line breaks inside. Other lines are kept as written. Record open points as questions instead of only mentioning them in chat, and resolve them with `[x]` once they are decided.
-For a tagged question, put `#name` after the checkbox and before `@target`, if present. Tags are optional; ordinary notes do not use them.
+One entry per line, without line breaks inside. Other lines are kept as written. Record open points as questions instead of only mentioning them in chat, and resolve them with `[x]` once they are decided. Only questions take a tag, written as `#name` right after the checkbox and using a tag defined in the model.
 
 ## Workflow
 

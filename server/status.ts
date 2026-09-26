@@ -22,9 +22,9 @@ export async function diagramStatus(dir: string) {
       const { nodes, edges, tags, errors } = parseDiagram(files.source);
       const entries = parseNotes(files.notes);
       const tagNames = new Set(tags.map((tag) => tag.name));
-      const unknownTags = [
-        ...new Set(entries.map((note) => note.tag).filter((tag) => tag && !tagNames.has(tag))),
-      ];
+      const unknownTags = entries
+        .map((note) => note.tag)
+        .filter((tag) => tag !== undefined && !tagNames.has(tag));
       const labels = new Map(nodes.map((node) => [node.id, node.label]));
       const targets = new Set([...labels.keys(), ...edges.map(edgeId)]);
       const describe = (target: string) =>
@@ -43,9 +43,9 @@ export async function diagramStatus(dir: string) {
             `  ? ${note.tag ? `#${note.tag} ` : ""}${note.target ? `@${describe(note.target)} ` : ""}${note.text}`,
         ),
         ...[...new Set(unknown)].map((target) => `  unknown target: ${target}`),
-        ...unknownTags.map((tag) => `  unknown tag: ${tag}`),
+        ...[...new Set(unknownTags)].map((tag) => `  unknown tag: ${tag}`),
       ];
-      return { lines, failed: errors.length > 0 || unknownTags.length > 0 };
+      return { lines, failed: errors.length > 0 };
     }),
   );
 

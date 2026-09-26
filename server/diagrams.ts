@@ -7,7 +7,6 @@ import type { Plugin } from "vite";
 import {
   applyOps,
   isOps,
-  parseDiagram,
   partPattern,
   toDiagramFiles,
   type DiagramState,
@@ -68,15 +67,6 @@ export function createDiagramsService(dir: string) {
 
   const save = async (name: string, ops: Op[]) => {
     const current = await load(name);
-    const tags = new Set(parseDiagram(current.source).tags.map((tag) => tag.name));
-    if (
-      ops.some(
-        (op) =>
-          (op.type === "add-note" && op.note.tag !== undefined && !tags.has(op.note.tag)) ||
-          (op.type === "tag-note" && op.tag !== undefined && !tags.has(op.tag)),
-      )
-    )
-      return undefined;
     const next = applyOps(current, ops);
     await Promise.all(
       parts.map(async ({ suffix, serialize }) => {
@@ -132,9 +122,7 @@ export function createDiagramsService(dir: string) {
       if (!namePattern.test(name)) return send(400, { error: "invalid diagram name" });
       if (request.method !== "POST") return send(200, await load(name));
       const ops: unknown = JSON.parse(await text(request));
-      if (!isOps(ops)) return send(400, { error: "invalid ops" });
-      const saved = await save(name, ops);
-      return saved ? send(200, saved) : send(400, { error: "unknown question tag" });
+      return isOps(ops) ? send(200, await save(name, ops)) : send(400, { error: "invalid ops" });
     },
   };
 }

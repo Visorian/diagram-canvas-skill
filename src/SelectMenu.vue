@@ -15,7 +15,6 @@ const root = useTemplateRef("root");
 const button = useTemplateRef("button");
 const list = useTemplateRef("list");
 const selected = computed(() => options.find((option) => option.value === model.value));
-const current = computed(() => selected.value?.label ?? model.value);
 
 async function show() {
   active.value = Math.max(
@@ -73,11 +72,11 @@ function onFocusout(event: FocusEvent) {
       <span class="flex min-w-0 items-center gap-1.5">
         <span
           v-if="selected?.color"
-          class="size-2.5 shrink-0 rounded-sm border border-slate-500/30"
+          class="swatch"
           :style="{ backgroundColor: selected.color }"
           aria-hidden="true"
         />
-        <span class="truncate">{{ current }}</span>
+        <span class="truncate">{{ selected?.label ?? model }}</span>
       </span>
       <svg
         class="muted size-4 shrink-0"
@@ -117,7 +116,7 @@ function onFocusout(event: FocusEvent) {
         <span class="flex min-w-0 items-center gap-1.5">
           <span
             v-if="option.color"
-            class="size-2.5 shrink-0 rounded-sm border border-slate-500/30"
+            class="swatch"
             :style="{ backgroundColor: option.color }"
             aria-hidden="true"
           />

@@ -1,25 +1,15 @@
 <script setup lang="ts">
-import { ref, watch } from "vue";
-import type { Op, QuestionTag } from "./diagram/format";
+import { ref } from "vue";
+import type { Op } from "./diagram/format";
 import type { Note } from "./diagram/notes";
-import SelectMenu from "./SelectMenu.vue";
+import TagSelect from "./TagSelect.vue";
 
 // No target means the entry is about the whole diagram.
-const { target, tags } = defineProps<{ target?: string; tags: QuestionTag[] }>();
+const { target } = defineProps<{ target?: string }>();
 const emit = defineEmits<{ apply: [ops: Op[]] }>();
 const kind = ref<Note["kind"]>("question");
 const draft = ref("");
 const tag = ref("");
-watch(
-  () => tags,
-  (available) => {
-    if (tag.value && !available.some(({ name }) => name === tag.value)) tag.value = "";
-  },
-);
-const tagOptions = () => [
-  { value: "", label: "No tag" },
-  ...tags.map(({ name, color }) => ({ value: name, label: name, color })),
-];
 
 const placeholders = {
   question: "What should we clarify or decide?",
@@ -40,12 +30,7 @@ function add() {
 <template>
   <form class="grid gap-2" @submit.prevent="add">
     <input v-model="draft" class="field" :placeholder="placeholders[kind]" />
-    <SelectMenu
-      v-if="kind === 'question' && tags.length > 0"
-      v-model="tag"
-      label="Question tag"
-      :options="tagOptions()"
-    />
+    <TagSelect v-if="kind === 'question'" v-model="tag" />
     <div class="flex items-center justify-between gap-2">
       <div class="segmented" role="radiogroup" aria-label="Entry type">
         <button

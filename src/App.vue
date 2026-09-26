@@ -19,6 +19,7 @@ import {
   nextTick,
   onMounted,
   onUnmounted,
+  provide,
   ref,
   shallowRef,
   useTemplateRef,
@@ -32,6 +33,7 @@ import HelpPopover from "./HelpPopover.vue";
 import NoteComposer from "./NoteComposer.vue";
 import NoteItem from "./NoteItem.vue";
 import SelectMenu from "./SelectMenu.vue";
+import { tagOption, tagsKey } from "./TagSelect.vue";
 import { kindStyles } from "./kinds";
 import { edgeId, kinds, type DiagramNode, type Layout, type Position } from "./diagram/format";
 import { autoLayout, nodeSize } from "./diagram/layout";
@@ -46,6 +48,10 @@ interface Point {
 }
 
 const { names, files, diagram, layout, open, apply, load } = useDiagram();
+provide(
+  tagsKey,
+  computed(() => diagram.value.tags),
+);
 const { dark, toggle: toggleTheme } = useTheme();
 
 // Below `md` the sidebar is a bottom sheet over the canvas, closed by default.
@@ -169,7 +175,7 @@ const tagFilter = ref("");
 const tagOptions = computed(() => [
   { value: "", label: "All tags" },
   { value: "#", label: "Untagged" },
-  ...diagram.value.tags.map(({ name, color }) => ({ value: name, label: name, color })),
+  ...diagram.value.tags.map(tagOption),
 ]);
 watch(
   () => diagram.value.tags,
@@ -337,7 +343,10 @@ function openPrompt(point: Point, request: Omit<PromptRequest, "x" | "y">) {
   menu.value = undefined;
   promptKey.value++;
   prompt.value = {
-    ...place(point, { width: 288, height: request.tags?.length ? 174 : 130 }),
+    ...place(point, {
+      width: 288,
+      height: request.kind && diagram.value.tags.length > 0 ? 174 : 130,
+    }),
     ...request,
   };
 }
@@ -347,7 +356,6 @@ function promptNote(target: string | undefined, kind: Note["kind"], point: Point
     title: target ? labelFor(target) : "Whole diagram",
     placeholder: kind === "question" ? "What should we clarify?" : "Add a note",
     kind,
-    tags: diagram.value.tags,
     submit: (text, chosen, tag) => {
       if (!text) return;
       const note: Note = { kind: chosen, text, done: false };
@@ -874,7 +882,6 @@ function closePopovers() {
                   v-for="note in questionsFor(selection, false)"
                   :key="note.text"
                   :note
-                  :tags="diagram.tags"
                   @apply="apply"
                 />
               </ul>
@@ -888,7 +895,6 @@ function closePopovers() {
                     v-for="note in questionsFor(selection, true)"
                     :key="note.text"
                     :note
-                    :tags="diagram.tags"
                     @apply="apply"
                   />
                 </ul>
@@ -904,7 +910,6 @@ function closePopovers() {
                   v-for="note in plainNotesFor(selection)"
                   :key="note.text"
                   :note
-                  :tags="diagram.tags"
                   @apply="apply"
                 />
               </ul>
@@ -917,12 +922,7 @@ function closePopovers() {
                   : "Nothing here yet. Add a question to discuss it with the agent."
               }}
             </p>
-            <NoteComposer
-              v-if="!readOnly"
-              :target="selection"
-              :tags="diagram.tags"
-              @apply="apply"
-            />
+            <NoteComposer v-if="!readOnly" :target="selection" @apply="apply" />
           </div>
 
           <div
@@ -1053,7 +1053,6 @@ function closePopovers() {
               v-for="note in openQuestions"
               :key="`${note.target} ${note.text}`"
               :note
-              :tags="diagram.tags"
               :label-for="labelFor"
               @apply="apply"
               @select="focus"
@@ -1071,7 +1070,6 @@ function closePopovers() {
                 v-for="note in resolvedQuestions"
                 :key="`${note.target} ${note.text}`"
                 :note
-                :tags="diagram.tags"
                 :label-for="labelFor"
                 @apply="apply"
                 @select="focus"
@@ -1083,15 +1081,9 @@ function closePopovers() {
         <section v-if="!readOnly || diagramNotes.length > 0" class="grid gap-2">
           <h2 class="heading">Notes about the whole diagram</h2>
           <ul v-if="diagramNotes.length > 0" class="grid gap-2">
-            <NoteItem
-              v-for="note in diagramNotes"
-              :key="note.text"
-              :note
-              :tags="diagram.tags"
-              @apply="apply"
-            />
+            <NoteItem v-for="note in diagramNotes" :key="note.text" :note @apply="apply" />
           </ul>
-          <NoteComposer v-if="!readOnly" :tags="diagram.tags" @apply="apply" />
+          <NoteComposer v-if="!readOnly" @apply="apply" />
         </section>
       </template>
 

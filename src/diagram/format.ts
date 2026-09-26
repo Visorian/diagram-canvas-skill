@@ -3,6 +3,7 @@ import { applyNoteOp, type Note, type NoteOp } from "./notes.ts";
 // Line format, one statement per line:
 //   id: Label [kind]         node, kind defaults to "service"
 //   source -> target: Label  edge, label optional; unknown ids become nodes
+//   # tag: name #rrggbb      question tag, see notes.ts
 //   # comment
 export const kinds = ["service", "db", "queue", "ext", "ui"] as const;
 export type Kind = (typeof kinds)[number];
@@ -81,6 +82,9 @@ export function isKind(value: string): value is Kind {
 
 function parseLine(text: string, lineNumber: number, errors: string[]): Line {
   const trimmed = text.trim();
+  if (trimmed.startsWith("# tag:") && !tagPattern.test(trimmed)) {
+    errors.push(`line ${lineNumber}: invalid tag definition`);
+  }
   if (trimmed === "" || trimmed.startsWith("#")) return { type: "other", text };
   const edge = edgePattern.exec(trimmed);
   if (edge?.[1] && edge[2]) {
@@ -119,18 +123,18 @@ export function parseDiagram(source: string): Diagram {
   const nodes = new Map<string, DiagramNode>();
   const edges = new Map<string, DiagramEdge>();
   const tags = new Map<string, QuestionTag>();
-  for (const [index, line] of parseLines(source, errors).entries()) {
+  for (const line of parseLines(source, errors)) {
     if (line.type === "node") {
       if (nodes.has(line.node.id)) errors.push(`duplicate node "${line.node.id}"`);
       nodes.set(line.node.id, line.node);
     } else if (line.type === "edge") {
       if (edges.has(edgeId(line.edge))) errors.push(`duplicate edge "${edgeId(line.edge)}"`);
       edges.set(edgeId(line.edge), line.edge);
-    } else if (line.text.trim().startsWith("# tag:")) {
-      const match = tagPattern.exec(line.text.trim());
-      if (!match?.[1] || !match[2]) errors.push(`line ${index + 1}: invalid tag definition`);
-      else if (tags.has(match[1])) errors.push(`line ${index + 1}: duplicate tag "${match[1]}"`);
-      else tags.set(match[1], { name: match[1], color: match[2] });
+    } else {
+      const [, name, color] = tagPattern.exec(line.text.trim()) ?? [];
+      if (!name || !color) continue;
+      if (tags.has(name)) errors.push(`duplicate tag "${name}"`);
+      tags.set(name, { name, color });
     }
   }
   for (const edge of edges.values()) {
@@ -230,14 +234,8 @@ function isOp(value: unknown): value is Op {
     case "add-note":
     case "remove-note":
       return isNote(value.note);
-    case "resolve-note":
-      return isNote(value.note) && typeof value.done === "boolean";
-    case "tag-note":
-      return (
-        isNote(value.note) &&
-        value.note.kind === "question" &&
-        (value.tag === undefined || isId(value.tag))
-      );
+    case "update-note":
+      return isNote(value.note) && isNote(value.next);
     default:
       return false;
   }

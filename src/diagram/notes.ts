@@ -1,7 +1,7 @@
 // Markdown list, one entry per line; other lines are kept as written:
 //   - [ ] @orders Who owns payment retries?   open question
 //   - [x] @orders Who owns payment retries?   resolved question
-//   - [ ] #risk @orders Can payment retry?     tagged question
+//   - [ ] #risk @orders Can payment retry?    tagged question
 //   - @gateway->auth Token cache TTL is 5 min  note
 //   - [ ] Split search out?                    no @target: about the whole diagram
 export interface Note {
@@ -14,27 +14,23 @@ export interface Note {
 
 export type NoteOp =
   | { type: "add-note"; note: Note }
-  | { type: "resolve-note"; note: Note; done: boolean }
-  | { type: "tag-note"; note: Note; tag?: string }
+  | { type: "update-note"; note: Note; next: Note }
   | { type: "remove-note"; note: Note };
 
 type NoteLine = { type: "note"; note: Note } | { type: "other"; text: string };
 
-const questionPattern = /^- \[([ x])\] (?:#([\w-]+) )?(?:@([\w-]+(?:->[\w-]+)?) )?(.+)$/;
-const notePattern = /^- (?:@([\w-]+(?:->[\w-]+)?) )?(.+)$/;
+const notePattern = /^- (?:\[([ x])\] (?:#([\w-]+) )?)?(?:@([\w-]+(?:->[\w-]+)?) )?(.+)$/;
 
 function parseLine(text: string): NoteLine {
-  const question = questionPattern.exec(text.trim());
-  if (question?.[4]) {
-    const note: Note = { kind: "question", text: question[4], done: question[1] === "x" };
-    if (question[2]) note.tag = question[2];
-    if (question[3]) note.target = question[3];
-    return { type: "note", note };
-  }
   const match = notePattern.exec(text.trim());
-  if (!match?.[2]) return { type: "other", text };
-  const note: Note = { kind: "note", text: match[2], done: false };
-  if (match[1]) note.target = match[1];
+  if (!match?.[4]) return { type: "other", text };
+  const note: Note = {
+    kind: match[1] === undefined ? "note" : "question",
+    text: match[4],
+    done: match[1] === "x",
+  };
+  if (match[2]) note.tag = match[2];
+  if (match[3]) note.target = match[3];
   return { type: "note", note };
 }
 
@@ -60,17 +56,9 @@ export function applyNoteOp(source: string, op: NoteOp) {
     lines.push({ type: "note", note: op.note });
   } else if (op.type === "remove-note") {
     lines = lines.filter((line) => !(line.type === "note" && sameNote(line.note, op.note)));
-  } else if (op.type === "resolve-note") {
-    lines = lines.map((line) =>
-      line.type === "note" && sameNote(line.note, op.note)
-        ? { type: "note", note: { ...line.note, done: op.done } }
-        : line,
-    );
   } else {
     lines = lines.map((line) =>
-      line.type === "note" && sameNote(line.note, op.note)
-        ? { type: "note", note: { ...line.note, tag: op.tag } }
-        : line,
+      line.type === "note" && sameNote(line.note, op.note) ? { type: "note", note: op.next } : line,
     );
   }
   return lines.length === 0 ? "" : `${lines.map(serializeLine).join("\n")}\n`;
