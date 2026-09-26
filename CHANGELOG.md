@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.0](https://github.com/Visorian/diagram-canvas-skill/compare/v1.0.0...v1.1.0) (2026-09-26)
+
+
+### Features
+
+* add question tags and sidebar filtering ([b8b9a12](https://github.com/Visorian/diagram-canvas-skill/commit/b8b9a12d4b7f6026b8fc02e78fedba658f4b7453))
+
 ## 1.0.0 (2026-09-25)
 
 
