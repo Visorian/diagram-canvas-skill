@@ -20,5 +20,11 @@
         "allow": ["**/*.css", "virtual:uno.css"]
       }
     ]
-  }
+  },
+  "overrides": [
+    {
+      "files": ["**/*.test.ts"],
+      "rules": { "typescript/no-floating-promises": "off" }
+    }
+  ]
 }
