@@ -1093,10 +1093,10 @@ function closePopovers() {
       </ul>
 
       <div
-        v-if="!readOnly"
         class="sticky bottom-0 -mx-4 mt-auto flex gap-2 border-t border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-800 dark:bg-slate-900"
       >
         <button
+          v-if="!readOnly"
           class="button"
           type="button"
           :disabled="!files"
@@ -1105,13 +1105,36 @@ function closePopovers() {
           Add node
         </button>
         <button
-          v-if="pinned"
+          v-if="pinned && !readOnly"
           class="button"
           type="button"
           title="Drop manual positions and lay out automatically"
           @click="apply([{ type: 'reset-layout' }])"
         >
           Auto layout
+        </button>
+        <button
+          class="button ml-auto grid size-9 shrink-0 place-items-center px-0"
+          type="button"
+          aria-label="Reset view"
+          title="Reset view"
+          :disabled="!ready"
+          @click="flow?.fitView({ duration: 300 })"
+        >
+          <svg
+            class="size-5"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path
+              d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"
+            />
+          </svg>
         </button>
       </div>
     </aside>
