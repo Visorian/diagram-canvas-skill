@@ -27,7 +27,7 @@ orders -> orders-db: SQL        edge, label optional; unknown ids become service
 - Kinds: `service` for a service or step, `db` for data or state, `queue` for queues, topics and event buses, `ui` for entry points like apps or CLI commands, `ext` for systems outside the diagram.
 - Ids use letters, digits, `_` and `-`. An edge's id is `source->target`, so there is one edge per pair.
 - Define question tags once in the model as `# tag: name #rrggbb`, named like ids, with any hex color.
-- Declare nodes in reading order, for workflows the order of the steps. The auto layout follows the file order, and edges back to earlier nodes are drawn as loop-backs.
+- Declare nodes in reading order, for workflows the order of the steps. The auto layout follows the edges and keeps the file order within a row. In a cycle, the edges back to earlier nodes are drawn as loop-backs.
 - Keep labels to about 20 characters. Put details, commands and `file:line` references in notes.
 
 ## Notes format

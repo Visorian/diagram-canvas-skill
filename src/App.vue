@@ -27,6 +27,7 @@ import {
 } from "vue";
 import CanvasPrompt, { type PromptRequest } from "./CanvasPrompt.vue";
 import ContextMenu, { type MenuItem, type MenuRequest } from "./ContextMenu.vue";
+import DiagramEdgeView from "./DiagramEdge.vue";
 import DiagramNodeView, { type NodeData } from "./DiagramNode.vue";
 import CanvasLegend from "./CanvasLegend.vue";
 import HelpPopover from "./HelpPopover.vue";
@@ -153,17 +154,14 @@ function revealAboveSheet(target: string) {
   );
 }
 
-// Re-run ELK only when the graph structure changes, not on label edits or moves.
+// Re-run the auto layout only when the graph structure changes, not on label edits or moves.
 const structure = computed(() =>
   JSON.stringify([diagram.value.nodes.map((node) => node.id), diagram.value.edges.map(edgeId)]),
 );
 watch(
   [structure, () => files.value?.name],
-  async ([, name], _, onCleanup) => {
-    let cancelled = false;
-    onCleanup(() => (cancelled = true));
-    const positions = await autoLayout(diagram.value);
-    if (!cancelled && name) auto.value = { name, positions };
+  ([, name]) => {
+    if (name) auto.value = { name, positions: autoLayout(diagram.value) };
   },
   { immediate: true },
 );
@@ -260,7 +258,7 @@ const edges = computed<Edge[]>(() =>
       source: edge.source,
       target: edge.target,
       label: questioned ? `${edge.label} ?`.trim() : edge.label,
-      type: "smoothstep",
+      type: "diagram",
       markerEnd: {
         type: MarkerType.ArrowClosed,
         color: dark.value ? "#64748b" : "#94a3b8",
@@ -614,6 +612,9 @@ function closePopovers() {
       >
         <template #node-diagram="props">
           <DiagramNodeView v-bind="props" />
+        </template>
+        <template #edge-diagram="props">
+          <DiagramEdgeView v-bind="props" />
         </template>
       </VueFlow>
       <div v-else-if="readOnly && !files" class="grid h-full place-items-center p-6">
