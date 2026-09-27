@@ -2,8 +2,9 @@
 import { createServer } from "node:http";
 import { resolve } from "node:path";
 import { parseArgs } from "node:util";
-import html from "../dist/app/index.html" with { type: "text" };
+import { brotliDecompressSync } from "node:zlib";
 import { createDiagramsService } from "./diagrams.ts";
+import { compressedHtml } from "./html.ts" with { type: "macro" };
 import { diagramStatus } from "./status.ts";
 
 const { values, positionals } = parseArgs({
@@ -24,6 +25,7 @@ if (command === "status") {
   process.exitCode = failed ? 1 : 0;
 } else {
   const service = createDiagramsService(dir);
+  const html = brotliDecompressSync(Buffer.from(compressedHtml(), "base64"));
   createServer((request, response) => {
     const url = request.url ?? "/";
     if (url.startsWith("/__events")) return service.events(request, response);
