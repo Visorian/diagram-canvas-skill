@@ -40,7 +40,7 @@ import { edgeId, kinds, type DiagramNode, type Layout, type Position } from "./d
 import { autoLayout, nodeSize } from "./diagram/layout";
 import { parseNotes, type Note } from "./diagram/notes";
 import { useDiagram } from "./diagram/useDiagram";
-import { readOnly } from "./mode";
+import { embedded, readOnly } from "./mode";
 import { useTheme } from "./theme";
 
 interface Point {
@@ -828,8 +828,11 @@ function closePopovers() {
           </button>
         </div>
         <p v-if="readOnly" class="muted text-xs">
-          {{ files ? `${files.name}.txt · ` : "" }}
-          <button type="button" class="link" @click="fileInput?.click()">Open files</button>
+          {{ files ? `${files.name}.txt` : "" }}
+          <template v-if="embedded === undefined">
+            {{ files ? " · " : "" }}
+            <button type="button" class="link" @click="fileInput?.click()">Open files</button>
+          </template>
         </p>
         <p v-else class="muted text-xs">
           diagrams/{{ files?.name }}.txt ·
@@ -1052,7 +1055,8 @@ function closePopovers() {
       <template v-else-if="files">
         <section v-if="waitingOnUser.length > 0" class="grid gap-2">
           <h2 class="heading">
-            Waiting on you <span class="muted font-normal">{{ waitingOnUser.length }}</span>
+            {{ readOnly ? "Waiting on the user" : "Waiting on you" }}
+            <span class="muted font-normal">{{ waitingOnUser.length }}</span>
           </h2>
           <ul class="grid gap-2">
             <NoteItem

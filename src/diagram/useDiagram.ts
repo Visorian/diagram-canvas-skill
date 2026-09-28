@@ -1,5 +1,5 @@
 import { computed, ref, shallowRef } from "vue";
-import { readOnly } from "../mode";
+import { embedded, readOnly } from "../mode";
 import {
   isDiagramFiles,
   parseDiagram,
@@ -68,11 +68,17 @@ function useServerDiagram() {
   return { ...store, open, apply, load: async (_files: Iterable<File>) => {} };
 }
 
-// Viewer: diagrams come from files the user opens; nothing is written.
+// Viewer: diagrams are embedded in the page or come from files the user opens; nothing is written.
 function useFileDiagram() {
   const store = useStore();
   const { names, files } = store;
   let loaded = new Map<string, DiagramFiles>();
+
+  function show(diagrams: DiagramFiles[], initial?: string | null) {
+    loaded = new Map(diagrams.map((diagram) => [diagram.name, diagram]));
+    names.value = [...loaded.keys()].toSorted();
+    void open(initial && loaded.has(initial) ? initial : (names.value[0] ?? ""));
+  }
 
   async function load(list: Iterable<File>) {
     const contents = await Promise.all(
@@ -83,17 +89,24 @@ function useFileDiagram() {
       const [, name, suffix] = partPattern.exec(fileName) ?? [];
       if (name && suffix) parts.set(name, { ...parts.get(name), [suffix]: content });
     }
-    loaded = new Map(
+    show(
       [...parts]
         .filter(([, part]) => part[".txt"] !== undefined)
-        .map(([name, part]) => [name, toDiagramFiles(name, part)]),
+        .map(([name, part]) => toDiagramFiles(name, part)),
     );
-    names.value = [...loaded.keys()].toSorted();
-    files.value = loaded.get(names.value[0] ?? "");
   }
 
   async function open(name: string) {
     files.value = loaded.get(name);
+    // Links to a published page can point at one of its diagrams.
+    if (files.value) history.replaceState(null, "", `?diagram=${encodeURIComponent(name)}`);
+  }
+
+  if (embedded !== undefined) {
+    const diagrams: unknown = JSON.parse(embedded);
+    if (Array.isArray(diagrams)) {
+      show(diagrams.filter(isDiagramFiles), new URLSearchParams(location.search).get("diagram"));
+    }
   }
 
   return { ...store, open, apply: async (_ops: Op[]) => {}, load };

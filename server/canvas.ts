@@ -1,10 +1,12 @@
 // Single-file canvas: `canvas.js [dir] [--port 7766] [--host 127.0.0.1] [--allow-host name]`,
-// `canvas.js status [dir]` or `canvas.js wait [dir]`.
+// `canvas.js status [dir]`, `canvas.js wait [dir]` or `canvas.js export [dir] [--out file]`.
+import { mkdir, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { brotliDecompressSync } from "node:zlib";
 import { createDiagramsService } from "./diagrams.ts";
+import { exportPage } from "./export.ts";
 import { compressedHtml } from "./html.ts" with { type: "macro" };
 import { waitForHandoffs } from "./handoff.ts";
 import { runStatus } from "./status.ts";
@@ -17,13 +19,15 @@ const { values, positionals } = parseArgs({
     host: { type: "string", default: "127.0.0.1" },
     // Host names the canvas is reached by besides localhost and IP addresses, e.g. behind a proxy.
     "allow-host": { type: "string", multiple: true, default: [] },
+    // Where `export` writes the read-only page.
+    out: { type: "string", default: "diagrams.html" },
   },
 });
-const [command, dirArgument] =
-  positionals[0] === "status" || positionals[0] === "wait"
-    ? positionals
-    : ["serve", positionals[0]];
+const [command, dirArgument] = ["status", "wait", "export"].includes(positionals[0] ?? "")
+  ? positionals
+  : ["serve", positionals[0]];
 const dir = resolve(dirArgument ?? "diagrams");
+const page = () => brotliDecompressSync(Buffer.from(compressedHtml(), "base64")).toString();
 
 if (command === "status" || command === "wait") {
   // `wait` blocks until the user hands a diagram over on the canvas.
@@ -35,9 +39,21 @@ if (command === "status" || command === "wait") {
   console.log(text);
   // Only `status` fails on invalid lines; for `wait` the output already lists them.
   process.exitCode = command === "status" && failed ? 1 : 0;
+} else if (command === "export") {
+  const { html, names } = await exportPage(page(), dir);
+  const out = resolve(values.out);
+  if (names.length === 0) {
+    // An empty page is almost certainly the wrong folder.
+    console.error(`No diagrams in ${dir}, nothing exported.`);
+    process.exitCode = 1;
+  } else {
+    await mkdir(dirname(out), { recursive: true });
+    await writeFile(out, html);
+    console.log(`Exported ${names.join(", ")} to ${out}`);
+  }
 } else {
   const service = createDiagramsService(dir, values["allow-host"]);
-  const html = brotliDecompressSync(Buffer.from(compressedHtml(), "base64"));
+  const html = page();
   createServer((request, response) => {
     const url = request.url ?? "/";
     if (url.startsWith("/__events")) return service.events(request, response);
