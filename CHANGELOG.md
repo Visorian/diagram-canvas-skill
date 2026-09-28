@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.0](https://github.com/Visorian/diagram-canvas-skill/compare/v1.3.0...v1.4.0) (2026-09-28)
+
+
+### Features
+
+* install the skill with npx skills add ([#9](https://github.com/Visorian/diagram-canvas-skill/issues/9)) ([e152fd3](https://github.com/Visorian/diagram-canvas-skill/commit/e152fd3ec1b4f0b41d2bb8bb8b1571c4f1164d23))
+
 ## [1.3.0](https://github.com/Visorian/diagram-canvas-skill/compare/v1.2.0...v1.3.0) (2026-09-28)
 
 
