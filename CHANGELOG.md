@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.0](https://github.com/Visorian/diagram-canvas-skill/compare/v1.4.0...v1.5.0) (2026-09-28)
+
+
+### Features
+
+* publish diagrams as a read-only page on GitHub Pages ([#12](https://github.com/Visorian/diagram-canvas-skill/issues/12)) ([714ea0a](https://github.com/Visorian/diagram-canvas-skill/commit/714ea0ab16131252ea373790b53a41de59b6b80e))
+
 ## [1.4.0](https://github.com/Visorian/diagram-canvas-skill/compare/v1.3.0...v1.4.0) (2026-09-28)
 
 
