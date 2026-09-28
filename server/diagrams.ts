@@ -1,6 +1,7 @@
 import { watch, type FSWatcher } from "node:fs";
 import { mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { isIP } from "node:net";
 import { join, resolve } from "node:path";
 import { text } from "node:stream/consumers";
 import type { Plugin } from "vite";
@@ -16,6 +17,42 @@ import {
 } from "../src/diagram/format.ts";
 
 const namePattern = /^[\w-]+$/;
+
+const hostName = (host: string) => {
+  try {
+    return new URL(`http://${host}`).hostname.replace(/^\[(.*)\]$/, "$1");
+  } catch {
+    return undefined;
+  }
+};
+
+// Like Vite's `server.allowedHosts`: loopback names and IP addresses always pass, since DNS rebinding
+// needs a domain, and `.example.com` also allows its subdomains. Requests sent by a page must come
+// from the canvas itself or an allowed host behind a proxy, so other sites can't use the canvas.
+export function isAllowedRequest(request: IncomingMessage, allowedHosts: readonly string[] | true) {
+  const listed = (name: string) =>
+    allowedHosts !== true &&
+    allowedHosts.some((allowed) =>
+      allowed.startsWith(".") ? `.${name}`.endsWith(allowed) : name === allowed,
+    );
+  const { host, origin } = request.headers;
+  const name = host ? hostName(host) : undefined;
+  if (!name) return false;
+  const hostAllowed =
+    allowedHosts === true ||
+    isIP(name) !== 0 ||
+    name === "localhost" ||
+    name.endsWith(".localhost") ||
+    listed(name);
+  if (!hostAllowed) return false;
+  if (origin === undefined) return true;
+  try {
+    const url = new URL(origin);
+    return url.host === host || listed(url.hostname);
+  } catch {
+    return false;
+  }
+}
 
 async function readOptional(path: string) {
   try {
@@ -44,8 +81,14 @@ const parts: { suffix: PartSuffix; serialize: (state: DiagramState) => string }[
 ];
 
 // Reads and edits `<dir>/<name>.*` and streams changes to connected canvases.
-export function createDiagramsService(dir: string) {
+export function createDiagramsService(dir: string, allowedHosts: readonly string[] | true = []) {
   const root = resolve(dir);
+  const reject = (request: IncomingMessage, response: ServerResponse) => {
+    if (isAllowedRequest(request, allowedHosts)) return false;
+    response.statusCode = 403;
+    response.end();
+    return true;
+  };
   const path = (name: string, suffix: PartSuffix) => join(root, `${name}${suffix}`);
   const clients = new Set<ServerResponse>();
   let watcher: FSWatcher | undefined;
@@ -100,6 +143,7 @@ export function createDiagramsService(dir: string) {
 
     // Server-sent events carrying `{ names, diagram }` after every file change.
     events(request: IncomingMessage, response: ServerResponse) {
+      if (reject(request, response)) return;
       response.writeHead(200, {
         "content-type": "text/event-stream",
         "cache-control": "no-cache",
@@ -112,6 +156,7 @@ export function createDiagramsService(dir: string) {
 
     // `GET /` lists diagrams, `GET /<name>` loads one, `POST /<name>` applies ops.
     async api(request: IncomingMessage, response: ServerResponse, url: string) {
+      if (reject(request, response)) return;
       const name = decodeURIComponent(url.split("?")[0]?.replace(/^\//, "") ?? "");
       const send = (status: number, body: unknown) => {
         response.statusCode = status;
@@ -132,7 +177,7 @@ export function diagramsPlugin(dir = "diagrams"): Plugin {
     name: "diagrams",
     apply: "serve",
     configureServer(server) {
-      const service = createDiagramsService(dir);
+      const service = createDiagramsService(dir, server.config.server.allowedHosts);
       server.httpServer?.once("close", service.close);
       server.middlewares.use("/__events", (request, response) => {
         service.events(request, response);

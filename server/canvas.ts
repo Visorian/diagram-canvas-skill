@@ -1,4 +1,5 @@
-// Single-file canvas: `canvas.js [dir] [--port 7766] [--host 127.0.0.1]` or `canvas.js status [dir]`.
+// Single-file canvas: `canvas.js [dir] [--port 7766] [--host 127.0.0.1] [--allow-host name]` or
+// `canvas.js status [dir]`.
 import { createServer } from "node:http";
 import { resolve } from "node:path";
 import { parseArgs } from "node:util";
@@ -13,6 +14,8 @@ const { values, positionals } = parseArgs({
     // Off the usual Vite ports, so it runs next to a project's own dev server.
     port: { type: "string", default: "7766" },
     host: { type: "string", default: "127.0.0.1" },
+    // Host names the canvas is reached by besides localhost and IP addresses, e.g. behind a proxy.
+    "allow-host": { type: "string", multiple: true, default: [] },
   },
 });
 const [command, dirArgument] =
@@ -24,7 +27,7 @@ if (command === "status") {
   console.log(text);
   process.exitCode = failed ? 1 : 0;
 } else {
-  const service = createDiagramsService(dir);
+  const service = createDiagramsService(dir, values["allow-host"]);
   const html = brotliDecompressSync(Buffer.from(compressedHtml(), "base64"));
   createServer((request, response) => {
     const url = request.url ?? "/";

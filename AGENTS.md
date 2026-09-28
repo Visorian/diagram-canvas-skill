@@ -15,7 +15,7 @@ with these commands for this repo:
 `bun run build` writes to `dist/`:
 
 - `canvas.js`: the editable canvas with its server. `node canvas.js [dir] [--port 7766]
-[--host 127.0.0.1]` serves `dir` (default `./diagrams`), `node canvas.js status [dir]`
+[--host 127.0.0.1] [--allow-host name]` serves `dir` (default `./diagrams`), `node canvas.js status [dir]`
   prints the status. Bun works as well as Node.
 - `viewer.html`: read-only viewer. Open it in a browser and choose or drop a diagram's files.
 - `skill/`: `SKILL.md` plus `canvas.js`. `bun run install:skill` builds and copies it to
