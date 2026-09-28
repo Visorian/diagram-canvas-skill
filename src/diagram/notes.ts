@@ -1,14 +1,19 @@
-// Markdown list, one entry per line; other lines are kept as written:
-//   - [ ] @orders Who owns payment retries?   open question
-//   - [x] @orders Who owns payment retries?   resolved question
-//   - [ ] #risk @orders Can payment retry?    tagged question
-//   - @gateway->auth Token cache TTL is 5 min  note
-//   - [ ] Split search out?                    no @target: about the whole diagram
+// Markdown list, one entry per line plus a question's answer; other lines are kept as written:
+//   - [ ] @orders Who owns payment retries?     open question for the agent
+//   - [ ] >user @orders Retry for how long?     open question for the user
+//   - [x] @orders Who owns payment retries?     resolved question
+//     → Payments team                           its answer, on the next line
+//   - [ ] #risk @orders Can payment retry?      tagged question
+//   - @gateway->auth Token cache TTL is 5 min   note
+//   - [ ] Split search out?                     no @target: about the whole diagram
 export interface Note {
   kind: "note" | "question";
   target?: string;
   tag?: string;
+  // Questions the agent asks the user; the others are for the agent.
+  forUser?: boolean;
   text: string;
+  answer?: string;
   done: boolean;
 }
 
@@ -19,33 +24,59 @@ export type NoteOp =
 
 type NoteLine = { type: "note"; note: Note } | { type: "other"; text: string };
 
-const notePattern = /^- (?:\[([ x])\] (?:#([\w-]+) )?)?(?:@([\w-]+(?:->[\w-]+)?) )?(.+)$/;
+const answerPattern = /^\s*→\s*(.+)$/;
+const notePattern =
+  /^- (?:\[([ x])\] (?:(>user) )?(?:#([\w-]+) )?)?(?:@([\w-]+(?:->[\w-]+)?) )?(.+)$/;
 
 function parseLine(text: string): NoteLine {
   const match = notePattern.exec(text.trim());
-  if (!match?.[4]) return { type: "other", text };
+  const [, box, forUser, tag, target, body] = match ?? [];
+  if (!body) return { type: "other", text };
   const note: Note = {
-    kind: match[1] === undefined ? "note" : "question",
-    text: match[4],
-    done: match[1] === "x",
+    kind: box === undefined ? "note" : "question",
+    text: body,
+    done: box === "x",
   };
-  if (match[2]) note.tag = match[2];
-  if (match[3]) note.target = match[3];
+  if (tag) note.tag = tag;
+  if (target) note.target = target;
+  if (forUser && note.kind === "question") note.forUser = true;
   return { type: "note", note };
 }
 
 function serializeLine(line: NoteLine) {
   if (line.type === "other") return line.text;
-  const { kind, target, tag, text, done } = line.note;
-  const box = kind === "question" ? `[${done ? "x" : " "}] ` : "";
-  return `- ${box}${tag ? `#${tag} ` : ""}${target ? `@${target} ` : ""}${text}`;
+  const { kind, target, tag, forUser, text, answer, done } = line.note;
+  const box = kind === "question" ? `[${done ? "x" : " "}] ${forUser ? ">user " : ""}` : "";
+  const answerLine = answer ? `\n  → ${answer}` : "";
+  return `- ${box}${tag ? `#${tag} ` : ""}${target ? `@${target} ` : ""}${text}${answerLine}`;
 }
 
-const parseLines = (source: string) =>
-  source === "" ? [] : source.replace(/\n$/, "").split("\n").map(parseLine);
+// An answer line belongs to the question right above it.
+function parseLines(source: string) {
+  const lines: NoteLine[] = [];
+  for (const text of source === "" ? [] : source.replace(/\n$/, "").split("\n")) {
+    const previous = lines.at(-1);
+    const answer = answerPattern.exec(text)?.[1]?.trim();
+    if (
+      answer &&
+      previous?.type === "note" &&
+      previous.note.kind === "question" &&
+      previous.note.answer === undefined
+    ) {
+      previous.note.answer = answer;
+      continue;
+    }
+    lines.push(parseLine(text));
+  }
+  return lines;
+}
 
 const sameNote = (a: Note, b: Note) =>
-  a.kind === b.kind && a.target === b.target && a.tag === b.tag && a.text === b.text;
+  a.kind === b.kind &&
+  a.target === b.target &&
+  a.tag === b.tag &&
+  Boolean(a.forUser) === Boolean(b.forUser) &&
+  a.text === b.text;
 
 export const parseNotes = (source: string) =>
   parseLines(source).flatMap((line) => (line.type === "note" ? [line.note] : []));

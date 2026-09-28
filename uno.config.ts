@@ -18,6 +18,8 @@ export default defineConfig({
       "rounded-lg border border-slate-200 bg-white shadow-lg dark:border-slate-700 dark:bg-slate-800",
     field:
       "w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm font-normal dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100 dark:placeholder-slate-500",
+    "button-primary":
+      "rounded-md border border-indigo-600 bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed dark:border-indigo-500 dark:bg-indigo-500 dark:hover:bg-indigo-400",
     button:
       "rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-800 hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700",
   },

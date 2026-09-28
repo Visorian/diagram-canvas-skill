@@ -3,3 +3,4 @@ dist/
 .playwright-cli/
 *.tsbuildinfo
 diagrams/*.marks
+diagrams/*.handoff

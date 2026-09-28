@@ -184,8 +184,10 @@ watch(
 );
 const matchesTag = (note: Note) =>
   tagFilter.value === "" || (tagFilter.value === "#" ? !note.tag : note.tag === tagFilter.value);
+// Questions the agent asked come first and ignore the tag filter: the agent waits on them.
+const waitingOnUser = computed(() => notes.value.filter((note) => isOpen(note) && note.forUser));
 const openQuestions = computed(() =>
-  notes.value.filter((note) => isOpen(note) && matchesTag(note)),
+  notes.value.filter((note) => isOpen(note) && !note.forUser && matchesTag(note)),
 );
 const resolvedQuestions = computed(() =>
   notes.value.filter((note) => note.kind === "question" && note.done && matchesTag(note)),
@@ -208,6 +210,43 @@ const agentPrompt = computed(() => {
     ? `Look at "${labelFor(target)}" (${target}) in ${file}, including its notes and open questions.`
     : `Look at ${file}: check what I marked and the open questions.`;
 });
+// Handing over writes `<name>.handoff`; the agent's `canvas.js wait` takes it and removes the file.
+const handoff = computed(() => files.value?.handoff);
+const pickedUp = ref(false);
+let takingBack = false;
+let pickedUpTimer: ReturnType<typeof setTimeout> | undefined;
+// Synchronous, so it runs before `takeBack` finishes and knows the removal was the user's own.
+watch(
+  [() => files.value?.name, handoff],
+  ([name, now], [previousName, before]) => {
+    if (name !== previousName || before === undefined || now !== undefined || takingBack) return;
+    pickedUp.value = true;
+    clearTimeout(pickedUpTimer);
+    pickedUpTimer = setTimeout(() => (pickedUp.value = false), 4000);
+  },
+  { flush: "sync" },
+);
+
+function promptHandoff() {
+  const target = selection.value;
+  const rect = canvas.value?.getBoundingClientRect();
+  openPrompt(rect ? { x: rect.right, y: rect.bottom } : pointer, {
+    title: target ? `To the agent, about ${labelFor(target)}` : "To the agent",
+    placeholder: "Message, optional",
+    action: "send",
+    submit: (text) => {
+      pickedUp.value = false;
+      const about = target ? `@${target} ` : "";
+      void apply([{ type: "handoff", text: `${about}${text}` }]);
+    },
+  });
+}
+
+function takeBack() {
+  takingBack = true;
+  void apply([{ type: "handoff" }]).finally(() => (takingBack = false));
+}
+
 const copied = ref(false);
 async function copyPrompt() {
   await navigator.clipboard.writeText(agentPrompt.value);
@@ -1011,6 +1050,22 @@ function closePopovers() {
       </template>
 
       <template v-else-if="files">
+        <section v-if="waitingOnUser.length > 0" class="grid gap-2">
+          <h2 class="heading">
+            Waiting on you <span class="muted font-normal">{{ waitingOnUser.length }}</span>
+          </h2>
+          <ul class="grid gap-2">
+            <NoteItem
+              v-for="note in waitingOnUser"
+              :key="`${note.target} ${note.text}`"
+              :note
+              :label-for="labelFor"
+              @apply="apply"
+              @select="focus"
+            />
+          </ul>
+        </section>
+
         <section class="grid gap-2">
           <div class="flex items-baseline justify-between">
             <h2 class="heading">
@@ -1040,7 +1095,7 @@ function closePopovers() {
         <section class="grid gap-2">
           <div class="flex items-center justify-between gap-2">
             <h2 class="heading">
-              Open questions <span class="muted font-normal">{{ openQuestions.length }}</span>
+              For the agent <span class="muted font-normal">{{ openQuestions.length }}</span>
             </h2>
             <SelectMenu
               v-model="tagFilter"
@@ -1093,49 +1148,76 @@ function closePopovers() {
       </ul>
 
       <div
-        class="sticky bottom-0 -mx-4 mt-auto flex gap-2 border-t border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-800 dark:bg-slate-900"
+        class="sticky bottom-0 -mx-4 mt-auto grid gap-2 border-t border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-800 dark:bg-slate-900"
       >
-        <button
-          v-if="!readOnly"
-          class="button"
-          type="button"
-          :disabled="!files"
-          @click="promptAddNode(canvasCenter(), false)"
-        >
-          Add node
-        </button>
-        <button
-          v-if="pinned && !readOnly"
-          class="button"
-          type="button"
-          title="Drop manual positions and lay out automatically"
-          @click="apply([{ type: 'reset-layout' }])"
-        >
-          Auto layout
-        </button>
-        <button
-          class="button ml-auto grid size-9 shrink-0 place-items-center px-0"
-          type="button"
-          aria-label="Reset view"
-          title="Reset view"
-          :disabled="!ready"
-          @click="flow?.fitView({ duration: 300 })"
-        >
-          <svg
-            class="size-5"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            aria-hidden="true"
+        <template v-if="!readOnly">
+          <p
+            v-if="handoff !== undefined"
+            class="flex items-center justify-between gap-2 py-1.5"
+            title="If the agent isn't waiting for the canvas, use Copy prompt instead"
           >
-            <path
-              d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"
-            />
-          </svg>
-        </button>
+            <span class="muted">Waiting for the agent…</span>
+            <button type="button" class="link" @click="takeBack">Take back</button>
+          </p>
+          <p v-else-if="pickedUp" class="muted py-1.5" role="status">The agent picked it up.</p>
+          <button
+            v-else
+            type="button"
+            class="button-primary"
+            :disabled="!files"
+            :title="
+              selection
+                ? 'Hand this element and your changes over to the agent'
+                : 'Hand your changes, marks and questions over to the agent'
+            "
+            @click="promptHandoff"
+          >
+            Send to agent
+          </button>
+        </template>
+        <div class="flex gap-2">
+          <button
+            v-if="!readOnly"
+            class="button"
+            type="button"
+            :disabled="!files"
+            @click="promptAddNode(canvasCenter(), false)"
+          >
+            Add node
+          </button>
+          <button
+            v-if="pinned && !readOnly"
+            class="button"
+            type="button"
+            title="Drop manual positions and lay out automatically"
+            @click="apply([{ type: 'reset-layout' }])"
+          >
+            Auto layout
+          </button>
+          <button
+            class="button ml-auto grid size-9 shrink-0 place-items-center px-0"
+            type="button"
+            aria-label="Reset view"
+            title="Reset view"
+            :disabled="!ready"
+            @click="flow?.fitView({ duration: 300 })"
+          >
+            <svg
+              class="size-5"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path
+                d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"
+              />
+            </svg>
+          </button>
+        </div>
       </div>
     </aside>
   </div>

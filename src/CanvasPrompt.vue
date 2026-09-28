@@ -9,6 +9,8 @@ export interface PromptRequest {
   placeholder: string;
   initial?: string;
   kind?: Note["kind"];
+  // What Enter does, "save" by default.
+  action?: string;
   submit: (text: string, kind: Note["kind"], tag: string) => void;
 }
 </script>
@@ -70,7 +72,9 @@ function onFocusout(event: FocusEvent) {
           {{ option }}
         </button>
       </div>
-      <span class="muted ml-auto whitespace-nowrap text-xs">Enter to save</span>
+      <span class="muted ml-auto whitespace-nowrap text-xs"
+        >Enter to {{ request.action ?? "save" }}</span
+      >
     </div>
   </form>
 </template>

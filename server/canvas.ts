@@ -1,12 +1,13 @@
-// Single-file canvas: `canvas.js [dir] [--port 7766] [--host 127.0.0.1] [--allow-host name]` or
-// `canvas.js status [dir]`.
+// Single-file canvas: `canvas.js [dir] [--port 7766] [--host 127.0.0.1] [--allow-host name]`,
+// `canvas.js status [dir]` or `canvas.js wait [dir]`.
 import { createServer } from "node:http";
 import { resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { brotliDecompressSync } from "node:zlib";
 import { createDiagramsService } from "./diagrams.ts";
 import { compressedHtml } from "./html.ts" with { type: "macro" };
-import { diagramStatus } from "./status.ts";
+import { waitForHandoffs } from "./handoff.ts";
+import { runStatus } from "./status.ts";
 
 const { values, positionals } = parseArgs({
   allowPositionals: true,
@@ -19,13 +20,21 @@ const { values, positionals } = parseArgs({
   },
 });
 const [command, dirArgument] =
-  positionals[0] === "status" ? positionals : ["serve", positionals[0]];
+  positionals[0] === "status" || positionals[0] === "wait"
+    ? positionals
+    : ["serve", positionals[0]];
 const dir = resolve(dirArgument ?? "diagrams");
 
-if (command === "status") {
-  const { text, failed } = await diagramStatus(dir);
+if (command === "status" || command === "wait") {
+  // `wait` blocks until the user hands a diagram over on the canvas.
+  const handoffs = command === "wait" ? await waitForHandoffs(dir) : [];
+  const { text, failed } = await runStatus(dir);
+  for (const { name, text: message } of handoffs) {
+    console.log(`${name}: handed over by the user${message ? `: ${message}` : ""}`);
+  }
   console.log(text);
-  process.exitCode = failed ? 1 : 0;
+  // Only `status` fails on invalid lines; for `wait` the output already lists them.
+  process.exitCode = command === "status" && failed ? 1 : 0;
 } else {
   const service = createDiagramsService(dir, values["allow-host"]);
   const html = brotliDecompressSync(Buffer.from(compressedHtml(), "base64"));

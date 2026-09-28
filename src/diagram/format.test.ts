@@ -62,11 +62,16 @@ test("edits the model in place and keeps comments and order", () => {
 test("rejects ops that would corrupt the files", () => {
   const note = { kind: "question", text: "Why?", done: false };
   assert.ok(isOps([{ type: "add-note", note: { ...note, tag: "risk", target: "a->b" } }]));
-  assert.ok(isOps([{ type: "update-note", note, next: { ...note, done: true } }]));
+  assert.ok(isOps([{ type: "update-note", note, next: { ...note, answer: "Yes", done: true } }]));
+  assert.ok(isOps([{ type: "add-note", note: { ...note, text: "a → b?", forUser: true } }]));
+  assert.ok(isOps([{ type: "handoff", text: "@a Split this?" }, { type: "handoff" }]));
   for (const op of [
     { type: "add-note", note: { ...note, kind: "note", tag: "risk" } },
     { type: "add-note", note: { ...note, tag: "two words" } },
     { type: "add-note", note: { ...note, text: "line\nbreak" } },
+    { type: "add-note", note: { ...note, kind: "note", answer: "Yes" } },
+    { type: "add-note", note: { ...note, kind: "note", forUser: true } },
+    { type: "handoff", text: "two\nlines" },
     { type: "upsert-node", node: { id: "a b", label: "A", kind: "service" } },
     { type: "upsert-node", node: { id: "a", label: "A", kind: "blob" } },
     { type: "unknown" },

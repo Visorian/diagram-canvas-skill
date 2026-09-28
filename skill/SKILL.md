@@ -13,6 +13,7 @@ Diagrams are plain text files in the project's `diagrams/` folder. The user work
 - `<name>.notes.md`: notes and open questions, written by both sides.
 - `<name>.marks`: one node or edge id per line, pointing at what someone wants the other to look at. Short-lived; not worth committing.
 - `<name>.layout.json`: positions the user dragged. Never read or edit it.
+- `<name>.handoff`: exists while the user hands the diagram over to you, with their message. `canvas.js wait` takes it; don't write it.
 
 ## Model format
 
@@ -33,19 +34,26 @@ orders -> orders-db: SQL        edge, label optional; unknown ids become service
 ## Notes format
 
 ```
-- [ ] @orders Who owns payment retries?    open question
-- [x] @orders Who owns payment retries?    resolved question
-- [ ] #risk @orders Can payment retry?     question tagged with risk
-- @gateway->auth Token cache TTL is 5 min  note
-- [ ] Split search into its own service?   no @target: about the whole diagram
+- [ ] @orders Who owns payment retries?       open question for you
+- [x] @orders Who owns payment retries?       resolved question
+  → Payments team                             its answer, on the line below
+- [ ] >user @orders Retry for 1 or 24 hours?  open question for the user
+- [ ] #risk @orders Can payment retry?        question tagged with risk
+- @gateway->auth Token cache TTL is 5 min      note
+- [ ] Split search into its own service?      no @target: about the whole diagram
 ```
 
-One entry per line, without line breaks inside. Other lines are kept as written. Record open points as questions instead of only mentioning them in chat, and resolve them with `[x]` once they are decided. Only questions take a tag, written as `#name` right after the checkbox and using a tag defined in the model.
+One entry per line, without line breaks inside, plus an optional answer line right below a question. Other lines are kept as written. Only questions take `>user`, a tag and an answer; the order is checkbox, `>user`, `#tag`, `@target`, text.
+
+- Questions without `>user` come from the user and are for you. Answer them in the file: resolve with `[x]` and add the answer line `  → answer` below, keeping the question line as it is.
+- When you need the user to decide or confirm something, ask with `>user` instead of only in chat, one decision per question, with the options in the text (`Kafka or SNS/SQS?`). The canvas lists them under "Waiting on you", and the user answers there, which resolves them with the answer.
+- Tags are written as `#name` and must be defined in the model.
 
 ## Workflow
 
-1. Start with `node <this skill's directory>/canvas.js status diagrams`. It prints counts, validation errors, marks and open questions per diagram. Run it again after editing; it exits non-zero on invalid lines.
+1. Start with `node <this skill's directory>/canvas.js status diagrams`. It prints counts, validation errors, marks and open questions per diagram, and what changed since the previous status, so you see the user's edits. Run it again after editing; it exits non-zero on invalid lines and records your edits as seen.
 2. When the user wants to see or edit a diagram, start the canvas in the background: `node <this skill's directory>/canvas.js diagrams --port 7766` (listens on 127.0.0.1; pick another port if 7766 is taken). Give the user `http://127.0.0.1:7766/?diagram=<name>`. If their browser runs on another machine, expose the port through a tunnel or VPN you both trust, such as `tailscale serve`, and pass the host name it is reached by with `--allow-host <name>`; the canvas rejects requests for other host names. It has no login, so don't listen on other interfaces with `--host 0.0.0.0` on a network you don't trust. Reuse a canvas that is already running and stop the ones you started when you are done.
-3. When the user refers to "this", "what I marked" or pastes a prompt copied from the canvas, run the status and read the marks and questions it lists.
-4. To point the user at elements, write their ids to `<name>.marks`.
-5. The canvas saves the user's edits to the same files. Re-read a file before changing it so you don't overwrite their edits.
+3. While the canvas is open, finish each turn by running `node <this skill's directory>/canvas.js wait diagrams` in the background. It exits when the user presses "Send to agent" and prints their message and the status with what they changed. A message starting with `@id` is about that element. Act on it, reply in chat, and wait again. If you can't run commands in the background, the user copies a prompt from the canvas instead.
+4. When the user refers to "this", "what I marked" or pastes a prompt copied from the canvas, run the status and read the marks and questions it lists.
+5. To point the user at elements, write their ids to `<name>.marks`.
+6. The canvas saves the user's edits to the same files. Re-read a file before changing it so you don't overwrite their edits.

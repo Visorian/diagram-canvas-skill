@@ -1,5 +1,5 @@
 {
   "$schema": "./node_modules/oxfmt/configuration_schema.json",
   "printWidth": 100,
-  "ignorePatterns": ["dist/**", ".playwright-cli/**", "bun.lock", "CHANGELOG.md"]
+  "ignorePatterns": ["dist/**", "diagrams/**", ".playwright-cli/**", "bun.lock", "CHANGELOG.md"]
 }

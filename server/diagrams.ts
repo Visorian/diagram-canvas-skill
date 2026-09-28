@@ -8,6 +8,7 @@ import type { Plugin } from "vite";
 import {
   applyOps,
   isOps,
+  partNames,
   partPattern,
   toDiagramFiles,
   type DiagramState,
@@ -78,6 +79,11 @@ const parts: { suffix: PartSuffix; serialize: (state: DiagramState) => string }[
   { suffix: ".layout.json", serialize: (state) => serializeLayout(state.layout) },
   { suffix: ".notes.md", serialize: (state) => state.notes },
   { suffix: ".marks", serialize: (state) => serializeMarks(state.marks) },
+  // A pending handoff keeps its file even without a message.
+  {
+    suffix: ".handoff",
+    serialize: (state) => (state.handoff === undefined ? "" : `${state.handoff}\n`),
+  },
 ];
 
 // Reads and edits `<dir>/<name>.*` and streams changes to connected canvases.
@@ -92,20 +98,24 @@ export function createDiagramsService(dir: string, allowedHosts: readonly string
   const path = (name: string, suffix: PartSuffix) => join(root, `${name}${suffix}`);
   const clients = new Set<ServerResponse>();
   let watcher: FSWatcher | undefined;
+  // A save's response can arrive after the event for a newer file change, e.g. when the agent
+  // takes a handoff right away. Versions let the canvas keep the newest state. They start from
+  // the clock, so they keep increasing across restarts.
+  let version = 0;
+  const nextVersion = () => (version = Math.max(version + 1, Date.now()));
 
   const list = async () => {
     await mkdir(root, { recursive: true });
-    return (await readdir(root)).flatMap((file) => {
-      const match = partPattern.exec(file);
-      return match?.[1] && match[2] === ".txt" ? [match[1]] : [];
-    });
+    return partNames(await readdir(root), ".txt");
   };
 
+  // Stamped before reading, so the load that starts last wins.
   const load = async (name: string) => {
+    const stamp = nextVersion();
     const contents = await Promise.all(
       parts.map(async ({ suffix }) => [suffix, await readOptional(path(name, suffix))] as const),
     );
-    return toDiagramFiles(name, Object.fromEntries(contents));
+    return { ...toDiagramFiles(name, Object.fromEntries(contents)), version: stamp };
   };
 
   const save = async (name: string, ops: Op[]) => {
@@ -119,7 +129,7 @@ export function createDiagramsService(dir: string, allowedHosts: readonly string
         else await writeFile(path(name, suffix), content);
       }),
     );
-    return { name, ...next };
+    return { name, ...next, version: nextVersion() };
   };
 
   const broadcast = async (name: string) => {

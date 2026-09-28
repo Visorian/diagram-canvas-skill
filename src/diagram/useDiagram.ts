@@ -32,16 +32,22 @@ function useStore() {
 function useServerDiagram() {
   const store = useStore();
   const { names, files } = store;
+  let latest = 0;
+  const accept = (next: DiagramFiles) => {
+    if ((next.version ?? latest) < latest) return;
+    latest = next.version ?? latest;
+    files.value = next;
+  };
 
   async function open(name: string) {
-    files.value = await request(name, isDiagramFiles);
+    accept(await request(name, isDiagramFiles));
     history.replaceState(null, "", `?diagram=${encodeURIComponent(name)}`);
   }
 
   async function apply(ops: Op[]) {
     if (!files.value || ops.length === 0) return;
     const body = JSON.stringify(ops);
-    files.value = await request(files.value.name, isDiagramFiles, { method: "POST", body });
+    accept(await request(files.value.name, isDiagramFiles, { method: "POST", body }));
   }
 
   new EventSource("/__events").addEventListener("message", (message) => {
@@ -49,7 +55,7 @@ function useServerDiagram() {
     if (typeof event !== "object" || event === null) return;
     if ("names" in event && isNames(event.names)) names.value = event.names;
     if ("diagram" in event && isDiagramFiles(event.diagram)) {
-      if (event.diagram.name === files.value?.name) files.value = event.diagram;
+      if (event.diagram.name === files.value?.name) accept(event.diagram);
     }
   });
 

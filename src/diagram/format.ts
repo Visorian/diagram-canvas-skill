@@ -35,22 +35,33 @@ export interface QuestionTag {
 export type Position = [x: number, y: number];
 export type Layout = Record<string, Position>;
 
-// Everything stored for one diagram; `marks` are node or edge ids (see `edgeId`).
+// Everything stored for one diagram; `marks` are node or edge ids (see `edgeId`). `handoff` is the
+// user's message while the diagram waits for the agent, possibly empty.
 export interface DiagramState {
   source: string;
   layout: Layout;
   notes: string;
   marks: string[];
+  handoff?: string;
 }
 
 export interface DiagramFiles extends DiagramState {
   name: string;
+  // Increases with every state the server sends, so the canvas can skip outdated ones.
+  version?: number;
 }
 
 // A diagram is stored as `<name><suffix>` files; only the model is required.
-export const partSuffixes = [".txt", ".layout.json", ".notes.md", ".marks"] as const;
+export const partSuffixes = [".txt", ".layout.json", ".notes.md", ".marks", ".handoff"] as const;
 export type PartSuffix = (typeof partSuffixes)[number];
-export const partPattern = /^([\w-]+)(\.txt|\.layout\.json|\.notes\.md|\.marks)$/;
+export const partPattern = /^([\w-]+)(\.txt|\.layout\.json|\.notes\.md|\.marks|\.handoff)$/;
+
+// Names of the diagrams that have a `suffix` part among `files`.
+export const partNames = (files: string[], suffix: PartSuffix) =>
+  files.flatMap((file) => {
+    const match = partPattern.exec(file);
+    return match?.[1] && match[2] === suffix ? [match[1]] : [];
+  });
 
 export type Op =
   | { type: "upsert-node"; node: DiagramNode; position?: Position }
@@ -61,6 +72,8 @@ export type Op =
   | { type: "reset-layout" }
   | { type: "mark"; target: string; marked: boolean }
   | { type: "clear-marks" }
+  // Without `text` it takes the handoff back.
+  | { type: "handoff"; text?: string }
   | NoteOp;
 
 type Line =
@@ -183,6 +196,7 @@ export function toDiagramFiles(
       .split("\n")
       .map((mark) => mark.trim())
       .filter((mark) => mark !== ""),
+    ...(parts[".handoff"] !== undefined && { handoff: parts[".handoff"].trim() }),
   };
 }
 
@@ -193,17 +207,25 @@ export const isDiagramFiles = (value: unknown): value is DiagramFiles =>
   typeof value.notes === "string" &&
   Array.isArray(value.marks) &&
   value.marks.every(isTarget) &&
-  isLayout(value.layout);
+  isLayout(value.layout) &&
+  (value.version === undefined || typeof value.version === "number") &&
+  (value.handoff === undefined || typeof value.handoff === "string");
 
-const isNote = (value: unknown): value is Note =>
-  isRecord(value) &&
-  (value.kind === "note" || value.kind === "question") &&
-  (value.target === undefined || isTarget(value.target)) &&
-  isText(value.text) &&
-  typeof value.text === "string" &&
-  value.text.trim() !== "" &&
-  (value.tag === undefined || (value.kind === "question" && isId(value.tag))) &&
-  typeof value.done === "boolean";
+const isEntryText = (value: unknown) =>
+  isText(value) && typeof value === "string" && value.trim() !== "";
+
+const isNote = (value: unknown): value is Note => {
+  if (!isRecord(value) || (value.kind !== "note" && value.kind !== "question")) return false;
+  const question = value.kind === "question";
+  return (
+    (value.target === undefined || isTarget(value.target)) &&
+    isEntryText(value.text) &&
+    (value.tag === undefined || (question && isId(value.tag))) &&
+    (value.forUser === undefined || (question && value.forUser === true)) &&
+    (value.answer === undefined || (question && isEntryText(value.answer))) &&
+    typeof value.done === "boolean"
+  );
+};
 
 function isOp(value: unknown): value is Op {
   if (!isRecord(value)) return false;
@@ -231,6 +253,8 @@ function isOp(value: unknown): value is Op {
       return true;
     case "mark":
       return isTarget(value.target) && typeof value.marked === "boolean";
+    case "handoff":
+      return value.text === undefined || isText(value.text);
     case "add-note":
     case "remove-note":
       return isNote(value.note);
@@ -249,6 +273,7 @@ export function applyOps(state: DiagramState, ops: Op[]): DiagramState {
   let nextLayout = { ...state.layout };
   let { notes } = state;
   let marks = new Set(state.marks);
+  let { handoff } = state;
   const lastIndex = (type: Line["type"]) => lines.findLastIndex((line) => line.type === type);
   const insertAfterLast = (type: Line["type"], line: Line) => {
     const index = lastIndex(type);
@@ -291,6 +316,8 @@ export function applyOps(state: DiagramState, ops: Op[]): DiagramState {
       else marks.delete(op.target);
     } else if (op.type === "clear-marks") {
       marks = new Set();
+    } else if (op.type === "handoff") {
+      handoff = op.text?.trim();
     } else {
       notes = applyNoteOp(notes, op);
     }
@@ -300,5 +327,6 @@ export function applyOps(state: DiagramState, ops: Op[]): DiagramState {
     layout: nextLayout,
     notes,
     marks: [...marks],
+    ...(handoff !== undefined && { handoff }),
   };
 }

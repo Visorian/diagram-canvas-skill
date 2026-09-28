@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, inject } from "vue";
+import { computed, inject, nextTick, ref, useTemplateRef } from "vue";
 import type { Op } from "./diagram/format";
 import type { Note } from "./diagram/notes";
 import { readOnly } from "./mode";
@@ -23,6 +23,23 @@ const update = (patch: Partial<Note>) =>
   emit("apply", [{ type: "update-note", note, next: { ...note, ...patch } }]);
 const tags = inject(tagsKey);
 const tagColor = computed(() => tags?.value.find(({ name }) => name === note.tag)?.color);
+
+// Answering resolves the question; an empty answer just resolves it.
+const answering = ref(false);
+const draft = ref("");
+const answerInput = useTemplateRef("answerInput");
+
+async function startAnswer() {
+  draft.value = note.answer ?? "";
+  answering.value = true;
+  await nextTick();
+  answerInput.value?.focus();
+}
+
+function saveAnswer() {
+  answering.value = false;
+  update({ answer: draft.value.trim() || undefined, done: true });
+}
 </script>
 
 <template>
@@ -55,6 +72,24 @@ const tagColor = computed(() => tags?.value.find(({ name }) => name === note.tag
           <template v-else>{{ segment.text }}</template>
         </template>
       </p>
+      <p
+        v-if="note.answer"
+        class="border-l-2 border-slate-300 pl-2 break-words dark:border-slate-600"
+        :class="note.done && 'muted'"
+      >
+        {{ note.answer }}
+      </p>
+      <span v-if="note.forUser" class="muted text-xs">Asked by the agent</span>
+      <form v-if="answering" @submit.prevent="saveAnswer">
+        <input
+          ref="answerInput"
+          v-model="draft"
+          class="field"
+          aria-label="Answer"
+          placeholder="Answer, or empty to just resolve"
+          @keydown.esc="answering = false"
+        />
+      </form>
       <span
         v-if="note.tag && (readOnly || !tags?.length)"
         class="muted flex items-center gap-1.5 text-xs"
@@ -62,7 +97,7 @@ const tagColor = computed(() => tags?.value.find(({ name }) => name === note.tag
         <span class="swatch" :style="{ backgroundColor: tagColor }" aria-hidden="true" />
         {{ note.tag }}
       </span>
-      <div v-if="!readOnly" class="flex gap-4 text-xs">
+      <div v-if="!readOnly" class="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
         <TagSelect
           v-if="note.kind === 'question'"
           class="min-w-24 max-w-36"
@@ -70,15 +105,22 @@ const tagColor = computed(() => tags?.value.find(({ name }) => name === note.tag
           @update:model-value="(tag) => update({ tag: tag || undefined })"
         />
         <button
-          v-if="note.kind === 'question'"
+          v-if="note.kind === 'question' && !note.done && !answering"
           type="button"
           class="link font-medium"
-          :title="
-            note.done ? 'Move back to open questions' : 'Mark as answered; it stays in the history'
-          "
-          @click="update({ done: !note.done })"
+          title="Answer and resolve; leave the answer empty to just resolve"
+          @click="startAnswer"
         >
-          {{ note.done ? "Reopen" : "Resolve" }}
+          Answer
+        </button>
+        <button
+          v-if="note.kind === 'question' && note.done"
+          type="button"
+          class="link font-medium"
+          title="Move back to open questions"
+          @click="update({ done: false })"
+        >
+          Reopen
         </button>
         <button
           type="button"
