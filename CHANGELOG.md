@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.3.0](https://github.com/Visorian/diagram-canvas-skill/compare/v1.2.0...v1.3.0) (2026-09-28)
+
+
+### Features
+
+* guide the back-and-forth between user and agent ([0666359](https://github.com/Visorian/diagram-canvas-skill/commit/0666359a731fbf4b6152ebdb4a66238669476a29))
+
+
+### Bug Fixes
+
+* reject canvas requests from other sites and unknown host names ([c03d994](https://github.com/Visorian/diagram-canvas-skill/commit/c03d994af55d68874005b89270611e8e15aa2e48))
+
 ## [1.2.0](https://github.com/Visorian/diagram-canvas-skill/compare/v1.1.0...v1.2.0) (2026-09-27)
 
 
