@@ -1,4 +1,6 @@
 # Shop platform
+# tag: risk #dc2626
+# tag: decision #2563eb
 web: Web App [ui]
 gateway: API Gateway
 auth: Auth Service

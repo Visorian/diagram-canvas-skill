@@ -2,6 +2,7 @@
   "name": "diagram-canvas-skill",
   "version": "1.2.0",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "scripts": {
     "dev": "vite",
