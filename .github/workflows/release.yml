@@ -46,6 +46,8 @@ jobs:
           ref: ${{ needs.release.outputs.sha }}
           persist-credentials: false
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: package.json
       - name: Install and check
         run: |
           set -euo pipefail
@@ -55,7 +57,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p dist/bundle/diagram-canvas
-          cp dist/skill/SKILL.md dist/skill/canvas.js dist/bundle/diagram-canvas/
+          cp skills/diagram-canvas/SKILL.md skills/diagram-canvas/canvas.js dist/bundle/diagram-canvas/
           cd dist/bundle
           zip "../diagram-canvas-$RELEASE_TAG.zip" diagram-canvas/SKILL.md diagram-canvas/canvas.js
           # Unversioned copy for a stable `releases/latest/download/diagram-canvas.zip` link.
