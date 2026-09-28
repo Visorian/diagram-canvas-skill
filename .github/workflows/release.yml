@@ -58,6 +58,8 @@ jobs:
           cp dist/skill/SKILL.md dist/skill/canvas.js dist/bundle/diagram-canvas/
           cd dist/bundle
           zip "../diagram-canvas-$RELEASE_TAG.zip" diagram-canvas/SKILL.md diagram-canvas/canvas.js
+          # Unversioned copy for a stable `releases/latest/download/diagram-canvas.zip` link.
+          cp "../diagram-canvas-$RELEASE_TAG.zip" ../diagram-canvas.zip
       - name: Verify bundle
         run: |
           set -euo pipefail
@@ -72,4 +74,4 @@ jobs:
           GH_REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
-          gh release upload "$RELEASE_TAG" "dist/diagram-canvas-$RELEASE_TAG.zip" --clobber
+          gh release upload "$RELEASE_TAG" "dist/diagram-canvas-$RELEASE_TAG.zip" dist/diagram-canvas.zip --clobber
