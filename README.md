@@ -1,5 +1,8 @@
 # Diagram canvas skill
 
+[![Latest release](https://img.shields.io/github/v/release/Visorian/diagram-canvas-skill?label=version)](https://github.com/Visorian/diagram-canvas-skill/releases/latest)
+[![Size of canvas.js](https://img.shields.io/github/size/Visorian/diagram-canvas-skill/skills/diagram-canvas/canvas.js?label=canvas.js)](skills/diagram-canvas/canvas.js)
+
 An agent skill for drawing architecture and workflow diagrams together with a coding agent. The
 diagram lives in plain text files in your project. You look at it and edit it on a canvas in the
 browser, the agent edits the same files, and both sides see each other's changes right away.
