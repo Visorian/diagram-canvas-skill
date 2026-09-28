@@ -12,7 +12,7 @@
   "options": {
     "typeAware": true
   },
-  "ignorePatterns": ["dist/**", ".playwright-cli/**"],
+  "ignorePatterns": ["dist/**", "skills/diagram-canvas/canvas.js", ".playwright-cli/**"],
   "rules": {
     "import/no-unassigned-import": [
       "error",

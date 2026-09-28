@@ -25,8 +25,17 @@ jobs:
         with:
           persist-credentials: false
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: package.json
       - name: Install and check
         run: |
           set -euo pipefail
           bun install --frozen-lockfile
           bun run check
+      - name: Check the committed skill matches the build
+        run: |
+          set -euo pipefail
+          if [ -n "$(git status --porcelain -- skills/)" ]; then
+            echo "::error::skills/diagram-canvas/canvas.js is outdated. Run bun run build and commit it."
+            exit 1
+          fi

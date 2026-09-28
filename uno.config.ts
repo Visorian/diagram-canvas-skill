@@ -1,7 +1,9 @@
 import { defineConfig, presetWind4 } from "unocss";
 
 export default defineConfig({
-  presets: [presetWind4()],
+  // All theme variables in a fixed order: on demand, their order varies between builds, and the
+  // committed skills/diagram-canvas/canvas.js has to be reproducible.
+  presets: [presetWind4({ preflights: { theme: { mode: true } } })],
   shortcuts: {
     muted: "text-slate-500 dark:text-slate-400",
     swatch: "size-2.5 shrink-0 rounded-sm border border-slate-500/30",

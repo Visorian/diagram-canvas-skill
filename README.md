@@ -12,7 +12,13 @@ answer on the canvas.
 
 ## Install
 
-Download the skill from the latest release into your skills folder:
+Install it for your agents with the [skills](https://skills.sh) CLI:
+
+```sh
+npx skills add Visorian/diagram-canvas-skill
+```
+
+Or download it from the latest release into your skills folder:
 
 ```sh
 curl -fsSLO https://github.com/Visorian/diagram-canvas-skill/releases/latest/download/diagram-canvas.zip
@@ -45,7 +51,7 @@ diagrams/platform.layout.json  positions you dragged
 diagrams/platform.marks        current marks, short-lived
 ```
 
-The format is documented in [`skill/SKILL.md`](skill/SKILL.md).
+The format is documented in [`skills/diagram-canvas/SKILL.md`](skills/diagram-canvas/SKILL.md).
 
 ## Develop
 
@@ -55,8 +61,9 @@ bun run dev      # canvas for diagrams/ at http://localhost:5173/?diagram=platfo
 bun run check    # format, lint, typecheck, test and build
 ```
 
-`bun run build` writes the bundled `dist/canvas.js`, a read-only `dist/viewer.html` and the skill
-in `dist/skill/`. `bun run install:skill` builds the skill and copies it to
+`bun run build` bundles the canvas into `skills/diagram-canvas/canvas.js` and writes a read-only
+`dist/viewer.html`. The bundle is committed, so the skill installs straight from the repo; CI fails
+when it doesn't match the sources. `bun run install:skill` builds the skill and copies it to
 `~/.claude/skills/diagram-canvas/`.
 
 ## License

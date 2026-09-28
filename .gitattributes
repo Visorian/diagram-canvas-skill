@@ -1,0 +1,2 @@
+# Built by `bun run build`; CI checks that it matches the sources.
+skills/diagram-canvas/canvas.js linguist-generated=true -diff
