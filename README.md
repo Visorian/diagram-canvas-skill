@@ -56,6 +56,49 @@ diagrams/platform.marks        current marks, short-lived
 
 The format is documented in [`skills/diagram-canvas/SKILL.md`](skills/diagram-canvas/SKILL.md).
 
+## View online
+
+`canvas.js export diagrams --out diagrams.html` writes all diagrams into one read-only page that
+works without a server. To publish it on GitHub Pages, set **Settings → Pages → Source** to
+"GitHub Actions" and add this workflow:
+
+```yaml
+name: Diagrams
+
+on:
+  push:
+    branches: [main]
+    paths: [diagrams/**]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v7
+      # Exports diagrams/ and uploads the page; pin a release tag to control updates.
+      - uses: Visorian/diagram-canvas-skill@main
+      - id: deploy
+        uses: actions/deploy-pages@v5
+```
+
+Link to a single diagram with `?diagram=<name>`, like this repo's
+[example](https://visorian.github.io/diagram-canvas-skill/?diagram=platform).
+
+The online viewer is only available when GitHub Pages is enabled and the repository is public, or on
+GitHub Enterprise Cloud. There, a private or internal repository can publish the site privately, so
+only people who can read the repository see it. On GitHub Free, Pro and Team a Pages site is always
+public, even from a private repository, so don't publish internal diagrams there; share the exported
+file instead.
+
 ## Develop
 
 ```sh
@@ -65,9 +108,9 @@ bun run check    # format, lint, typecheck, test and build
 ```
 
 `bun run build` bundles the canvas into `skills/diagram-canvas/canvas.js` and writes a read-only
-`dist/viewer.html`. The bundle is committed, so the skill installs straight from the repo; CI fails
-when it doesn't match the sources. `bun run install:skill` builds the skill and copies it to
-`~/.claude/skills/diagram-canvas/`.
+`dist/viewer.html` that opens diagram files you choose. The bundle is committed, so the skill
+installs straight from the repo; CI fails when it doesn't match the sources.
+`bun run install:skill` builds the skill and copies it to `~/.claude/skills/diagram-canvas/`.
 
 ## License
 

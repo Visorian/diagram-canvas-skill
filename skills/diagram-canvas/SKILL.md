@@ -56,4 +56,5 @@ One entry per line, without line breaks inside, plus an optional answer line rig
 3. While the canvas is open, finish each turn by running `node <this skill's directory>/canvas.js wait diagrams` in the background. It exits when the user presses "Send to agent" and prints their message and the status with what they changed. A message starting with `@id` is about that element. Act on it, reply in chat, and wait again. If you can't run commands in the background, the user copies a prompt from the canvas instead.
 4. When the user refers to "this", "what I marked" or pastes a prompt copied from the canvas, run the status and read the marks and questions it lists.
 5. To point the user at elements, write their ids to `<name>.marks`.
-6. The canvas saves the user's edits to the same files. Re-read a file before changing it so you don't overwrite their edits.
+6. To share a read-only view, `node <this skill's directory>/canvas.js export diagrams --out diagrams.html` writes all diagrams into one HTML file. The skill's repository describes publishing it on GitHub Pages.
+7. The canvas saves the user's edits to the same files. Re-read a file before changing it so you don't overwrite their edits.

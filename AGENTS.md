@@ -19,9 +19,13 @@ with these commands for this repo:
   `SKILL.md` so `npx skills add` installs a working skill. Commit it after changing the sources;
   CI fails when it is outdated. `node canvas.js [dir] [--port 7766] [--host 127.0.0.1]
 [--allow-host name]` serves `dir` (default `./diagrams`), `node canvas.js status [dir]` prints
-  the status and `node canvas.js wait [dir]` waits until the user hands a diagram over. Bun works
-  as well as Node.
+  the status, `node canvas.js wait [dir]` waits until the user hands a diagram over and
+  `node canvas.js export [dir] [--out diagrams.html]` writes a read-only page with the diagrams
+  embedded. Bun works as well as Node.
 - `dist/viewer.html`: read-only viewer. Open it in a browser and choose or drop a diagram's files.
+
+`action.yml` is a GitHub Action that exports a project's diagrams and uploads the page for GitHub
+Pages; `.github/workflows/pages.yml` uses it to publish this repo's `diagrams/`.
 
 `bun run install:skill` builds and copies the skill to `~/.claude/skills/diagram-canvas/` (or
 `$CLAUDE_SKILLS_DIR/diagram-canvas/`).
