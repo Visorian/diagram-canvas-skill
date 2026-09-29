@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.1](https://github.com/Visorian/diagram-canvas-skill/compare/v1.5.0...v1.5.1) (2026-09-29)
+
+
+### Bug Fixes
+
+* route long edges through the lanes the auto layout keeps free ([#14](https://github.com/Visorian/diagram-canvas-skill/issues/14)) ([05c71cb](https://github.com/Visorian/diagram-canvas-skill/commit/05c71cb09123bd048689e040bcc54ae9302ec718))
+
 ## [1.5.0](https://github.com/Visorian/diagram-canvas-skill/compare/v1.4.0...v1.5.0) (2026-09-28)
 
 
