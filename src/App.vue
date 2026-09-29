@@ -36,8 +36,8 @@ import NoteItem from "./NoteItem.vue";
 import SelectMenu from "./SelectMenu.vue";
 import { tagOption, tagsKey } from "./TagSelect.vue";
 import { kindStyles } from "./kinds";
-import { edgeId, kinds, type DiagramNode, type Layout, type Position } from "./diagram/format";
-import { autoLayout, nodeSize } from "./diagram/layout";
+import { edgeId, kinds, type DiagramNode, type Position } from "./diagram/format";
+import { autoLayout, nodeSize, type AutoLayout } from "./diagram/layout";
 import { parseNotes, type Note } from "./diagram/notes";
 import { useDiagram } from "./diagram/useDiagram";
 import { embedded, readOnly } from "./mode";
@@ -63,7 +63,7 @@ function setSidebar(visible: boolean) {
   sidebarOpen.value = visible;
   localStorage.setItem("sidebar", visible ? "open" : "closed");
 }
-const auto = shallowRef<{ name: string; positions: Layout }>();
+const auto = shallowRef<{ name: string } & AutoLayout>();
 const selection = ref<string>();
 const flow = shallowRef<VueFlowStore>();
 const canvas = useTemplateRef("canvas");
@@ -161,7 +161,7 @@ const structure = computed(() =>
 watch(
   [structure, () => files.value?.name],
   ([, name]) => {
-    if (name) auto.value = { name, positions: autoLayout(diagram.value) };
+    if (name) auto.value = { name, ...autoLayout(diagram.value) };
   },
   { immediate: true },
 );
@@ -298,6 +298,7 @@ const edges = computed<Edge[]>(() =>
       target: edge.target,
       label: questioned ? `${edge.label} ?`.trim() : edge.label,
       type: "diagram",
+      data: { route: auto.value?.routes[id] },
       markerEnd: {
         type: MarkerType.ArrowClosed,
         color: dark.value ? "#64748b" : "#94a3b8",

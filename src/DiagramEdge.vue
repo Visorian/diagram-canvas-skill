@@ -1,17 +1,37 @@
 <script setup lang="ts">
-import { BaseEdge, getSmoothStepPath, useVueFlow, type EdgeProps } from "@vue-flow/core";
+import {
+  BaseEdge,
+  getSmoothStepPath,
+  useVueFlow,
+  type EdgeProps,
+  type GraphNode,
+} from "@vue-flow/core";
 import { computed } from "vue";
+import type { EdgeRoute } from "./diagram/layout";
 
-// Smooth step edge that avoids nodes. When the plain smooth step would cut through a node, and for
+// Smooth step edge that avoids nodes. An edge across several rows follows the route the auto layout
+// kept free for it. Otherwise, when the plain smooth step would cut through a node, and for
 // loop-backs to a node above, the edge leaves through the gap below its source, follows the nearest
 // free vertical corridor and enters its target from the gap above it.
-const props = defineProps<EdgeProps>();
+const props = defineProps<EdgeProps<{ route?: EdgeRoute }>>();
 const { getEdges, getNodes } = useVueFlow();
 const gap = 20;
 const lane = 24;
 const radius = 5;
 
 type Point = [x: number, y: number];
+
+// Edges leave a node at its bottom center and enter one at its top center.
+const exitPoint = ({
+  computedPosition: { x, y },
+  dimensions: { width, height },
+}: GraphNode): Point => [x + width / 2, y + height];
+const entryPoint = ({ computedPosition: { x, y }, dimensions: { width } }: GraphNode): Point => [
+  x + width / 2,
+  y,
+];
+const samePoint = (point: Point, other: Point | undefined) =>
+  other !== undefined && Math.abs(point[0] - other[0]) < 1 && Math.abs(point[1] - other[1]) < 1;
 
 // Node boxes shrunk by a pixel, so segments that only touch a node's border don't count as hits.
 const boxes = computed(() =>
@@ -52,7 +72,20 @@ function roundedPath(points: Point[]) {
     .join(" ");
 }
 
+// The auto layout's route holds while both ends sit where it placed them and nothing moved into it.
+const laidOut = computed(() => {
+  const route = props.data?.route;
+  if (!route) return undefined;
+  if (!samePoint(exitPoint(props.sourceNode), route.points[0])) return undefined;
+  if (!samePoint(entryPoint(props.targetNode), route.points.at(-1))) return undefined;
+  const { sourceX, sourceY, targetX, targetY } = props;
+  const points: Point[] = [[sourceX, sourceY], ...route.points.slice(1, -1), [targetX, targetY]];
+  if (!isClear(points)) return undefined;
+  return { path: roundedPath(points), labelX: route.label[0], labelY: route.label[1] };
+});
+
 const route = computed(() => {
+  if (laidOut.value) return laidOut.value;
   const { sourceX, sourceY, targetX, targetY } = props;
   const middle = (sourceY + targetY) / 2;
   if (
