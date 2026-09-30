@@ -28,7 +28,9 @@ import {
 import CanvasPrompt, { type PromptRequest } from "./CanvasPrompt.vue";
 import ContextMenu, { type MenuItem, type MenuRequest } from "./ContextMenu.vue";
 import DiagramEdgeView from "./DiagramEdge.vue";
-import DiagramNodeView, { type NodeData } from "./DiagramNode.vue";
+import DiagramGroupView from "./DiagramGroup.vue";
+import DiagramTimeline from "./DiagramTimeline.vue";
+import DiagramNodeView from "./DiagramNode.vue";
 import CanvasLegend from "./CanvasLegend.vue";
 import HelpPopover from "./HelpPopover.vue";
 import NoteComposer from "./NoteComposer.vue";
@@ -36,8 +38,18 @@ import NoteItem from "./NoteItem.vue";
 import SelectMenu from "./SelectMenu.vue";
 import { tagOption, tagsKey } from "./TagSelect.vue";
 import { kindStyles } from "./kinds";
-import { edgeId, kinds, type DiagramNode, type Position } from "./diagram/format";
-import { autoLayout, nodeSize, type AutoLayout } from "./diagram/layout";
+import { compare, type Change } from "./diagram/compare";
+import {
+  edgeId,
+  kinds,
+  parseDiagram,
+  type DiagramEdge,
+  type DiagramNode,
+  type Position,
+  type Version,
+  type VersionFiles,
+} from "./diagram/format";
+import { autoLayout, groupBoxes, nodeSize, type AutoLayout } from "./diagram/layout";
 import { parseNotes, type Note } from "./diagram/notes";
 import { useDiagram } from "./diagram/useDiagram";
 import { embedded, readOnly } from "./mode";
@@ -48,7 +60,8 @@ interface Point {
   y: number;
 }
 
-const { names, files, diagram, layout, open, apply, load } = useDiagram();
+const { names, files, diagram, layout, open, apply, load, versions, versionAt, peek } =
+  useDiagram();
 provide(
   tagsKey,
   computed(() => diagram.value.tags),
@@ -154,14 +167,109 @@ function revealAboveSheet(target: string) {
   );
 }
 
+// Comparing with another version: another diagram of the folder, such as a second plan, or an
+// earlier state from the git history. The canvas lays out both as one and shows them in turn, the
+// current one with what differs highlighted. It only reads meanwhile.
+const compareRef = ref(new URLSearchParams(location.search).get("compare") ?? "");
+const versionList = shallowRef<Version[]>([]);
+const otherFiles = shallowRef<VersionFiles>();
+const showOther = ref(false);
+watch(
+  () => files.value?.name,
+  async (name, previous) => {
+    if (previous !== undefined && name !== previous) compareRef.value = "";
+    versionList.value = name ? await versions(name).catch(() => []) : [];
+  },
+  { immediate: true },
+);
+// Another diagram wins over a commit of the same name.
+const isDiagram = (version: string) =>
+  version !== files.value?.name && names.value.includes(version);
+let loadingVersion = 0;
+watch(
+  [compareRef, () => files.value?.name],
+  async ([version, name]) => {
+    const request = ++loadingVersion;
+    showOther.value = false;
+    const other =
+      !version || !name
+        ? undefined
+        : await (isDiagram(version) ? peek(version) : versionAt(name, version)).catch(
+            () => undefined,
+          );
+    if (request !== loadingVersion) return;
+    otherFiles.value = other;
+    const url = new URL(location.href);
+    if (version) url.searchParams.set("compare", version);
+    else url.searchParams.delete("compare");
+    history.replaceState(null, "", url);
+  },
+  { immediate: true },
+);
+const otherDiagram = computed(() => otherFiles.value && parseDiagram(otherFiles.value.source));
+const comparison = computed(
+  () =>
+    otherFiles.value &&
+    otherDiagram.value &&
+    compare(
+      { diagram: otherDiagram.value, layout: otherFiles.value.layout },
+      { diagram: diagram.value, layout: layout.value },
+    ),
+);
+// What the canvas lays out, what it shows of it, and where nodes are pinned.
+const laidOut = computed(() => comparison.value?.union ?? diagram.value);
+const shown = computed(() =>
+  showOther.value && otherDiagram.value ? otherDiagram.value : laidOut.value,
+);
+const pins = computed(() => comparison.value?.layout ?? layout.value);
+const changeOf = (id: string): Change | undefined =>
+  showOther.value ? undefined : comparison.value?.changes.get(id);
+const changeCounts = computed(() => {
+  const counts = { added: 0, changed: 0, removed: 0 };
+  for (const change of comparison.value?.changes.values() ?? []) counts[change]++;
+  return counts;
+});
+const versionOptions = computed(() => [
+  { value: "", label: "No comparison" },
+  ...names.value.filter(isDiagram).map((name) => ({ value: name, label: `Diagram · ${name}` })),
+  ...versionList.value.map((version) => ({
+    value: version.ref,
+    label: `${version.ref.slice(0, 7)} · ${version.subject}`,
+  })),
+  // A version from a link, like HEAD, that the list names differently.
+  ...(compareRef.value &&
+  !isDiagram(compareRef.value) &&
+  !versionList.value.some((version) => version.ref === compareRef.value)
+    ? [{ value: compareRef.value, label: compareRef.value }]
+    : []),
+]);
+const otherName = computed(() =>
+  isDiagram(compareRef.value) ? compareRef.value : compareRef.value.slice(0, 7),
+);
+// The canvas doesn't edit while it shows a comparison.
+const locked = computed(() => readOnly || comparison.value !== undefined);
+// Both versions together take other room than one, so the view fits again once they're drawn.
+watch(
+  () => comparison.value !== undefined,
+  async () => {
+    await nextTick();
+    requestAnimationFrame(() => void flow.value?.fitView({ duration: 300 }));
+  },
+);
+
 // Re-run the auto layout only when the graph structure changes, not on label edits or moves.
 const structure = computed(() =>
-  JSON.stringify([diagram.value.nodes.map((node) => node.id), diagram.value.edges.map(edgeId)]),
+  JSON.stringify([
+    laidOut.value.layout,
+    laidOut.value.groups.map((group) => [group.id, group.outer, group.parent]),
+    laidOut.value.nodes.map((node) => [node.id, node.group]),
+    laidOut.value.edges.map(edgeId),
+  ]),
 );
 watch(
   [structure, () => files.value?.name],
   ([, name]) => {
-    if (name) auto.value = { name, ...autoLayout(diagram.value) };
+    if (name) auto.value = { name, ...autoLayout(laidOut.value) };
   },
   { immediate: true },
 );
@@ -256,6 +364,14 @@ async function copyPrompt() {
 
 const diagramOptions = computed(() => names.value.map((name) => ({ value: name, label: name })));
 const kindOptions = kinds.map((kind) => ({ value: kind, label: kindStyles[kind].name }));
+const findGroup = (id: string) => diagram.value.groups.find((group) => group.id === id);
+const groupOptions = computed(() => [
+  { value: "", label: "No group" },
+  ...diagram.value.groups.map((group) => {
+    const parent = group.parent && findGroup(group.parent);
+    return { value: group.id, label: parent ? `${parent.label} › ${group.label}` : group.label };
+  }),
+]);
 
 const ready = computed(() => files.value !== undefined && auto.value?.name === files.value.name);
 const pinned = computed(() => Object.keys(layout.value).length > 0);
@@ -270,9 +386,54 @@ const outgoing = computed(() =>
   diagram.value.edges.filter((edge) => edge.source === selectedNode.value?.id),
 );
 
-const nodes = computed<Node<NodeData>[]>(() =>
-  diagram.value.nodes.map((node) => {
-    const [x, y] = layout.value[node.id] ?? auto.value?.positions[node.id] ?? [0, 0];
+const groups = computed(() => {
+  const visible = new Set(shown.value.groups.map((group) => group.id));
+  return auto.value
+    ? groupBoxes(laidOut.value, auto.value, pins.value).filter(({ id }) => visible.has(id))
+    : [];
+});
+const positionOf = (id: string): Position => pins.value[id] ?? auto.value?.positions[id] ?? [0, 0];
+// Groups are boxes behind the nodes, outer ones behind the groups they hold, and a sequence's
+// timelines run behind the edges; both let clicks through to the pane. Their ids can't clash with
+// node ids, which have no colon.
+const background = { draggable: false, selectable: false, connectable: false, focusable: false };
+const flowId = (id: string) =>
+  laidOut.value.groups.some((group) => group.id === id) ? `group:${id}` : id;
+const nodes = computed<Node[]>(() => [
+  ...groups.value.map(({ id, box }) => {
+    const group = shown.value.groups.find((candidate) => candidate.id === id);
+    return {
+      ...background,
+      id: flowId(id),
+      type: "group",
+      position: { x: box.x, y: box.y },
+      width: box.width,
+      height: box.height,
+      data: { label: group?.label ?? id, outer: group?.outer === true, change: changeOf(id) },
+      zIndex: group?.outer ? -2 : -1,
+      style: { pointerEvents: "none" as const },
+    };
+  }),
+  ...shown.value.nodes.flatMap((node) => {
+    const length = auto.value?.timelines?.[node.id];
+    if (!length) return [];
+    const [x, y] = positionOf(node.id);
+    return [
+      {
+        ...background,
+        id: `timeline:${node.id}`,
+        type: "timeline",
+        position: { x: x + nodeSize.width / 2 - 1, y: y + nodeSize.height },
+        width: 2,
+        height: length,
+        data: {},
+        zIndex: -1,
+        style: { pointerEvents: "none" as const },
+      },
+    ];
+  }),
+  ...shown.value.nodes.map((node) => {
+    const [x, y] = positionOf(node.id);
     const entries = notesFor(node.id);
     return {
       id: node.id,
@@ -283,46 +444,86 @@ const nodes = computed<Node<NodeData>[]>(() =>
         marked: marks.value.has(node.id),
         questions: entries.filter(isOpen).length,
         notes: entries.filter((note) => note.kind === "note").length,
+        change: changeOf(node.id),
       },
       selected: selection.value === node.id,
     };
   }),
-);
+]);
+// Colors of the edge highlights in style.css.
+const changeColors: Record<Change, [light: string, dark: string]> = {
+  added: ["#00a795", "#40c1ac"],
+  changed: ["#6050d6", "#908cfe"],
+  removed: ["#da1984", "#f6459d"],
+};
+// Matches the animated edges in style.css.
+const flowColor = computed(() => (dark.value ? "#529aff" : "#195ed8"));
+// Edges to a group that has no box in this layout have nothing to attach to.
+const drawnIds = computed(() => new Set(nodes.value.map((node) => node.id)));
+// Where the layout drew no connection, parallel edges are shifted apart.
+const parallelOffset = (edge: DiagramEdge) => {
+  const count = shown.value.edges.filter(
+    ({ source, target }) => source === edge.source && target === edge.target,
+  ).length;
+  return ((edge.ordinal ?? 1) - 1 - (count - 1) / 2) * 16;
+};
 const edges = computed<Edge[]>(() =>
-  diagram.value.edges.map((edge) => {
+  shown.value.edges.flatMap((edge) => {
+    const [source, target] = [flowId(edge.source), flowId(edge.target)];
+    if (!drawnIds.value.has(source) || !drawnIds.value.has(target)) return [];
     const id = edgeId(edge);
     const questioned = notesFor(id).some(isOpen);
+    const change = changeOf(id);
     const flowEdge = {
       id,
-      source: edge.source,
-      target: edge.target,
+      source,
+      target,
       label: questioned ? `${edge.label} ?`.trim() : edge.label,
       type: "diagram",
-      data: { route: auto.value?.routes[id] },
+      data: {
+        connection: auto.value?.connections[id],
+        step: auto.value?.steps?.[id],
+        offset: parallelOffset(edge),
+      },
+      // Vue Flow draws animated edges with flowing dashes, styled in style.css, like the changes.
+      animated: edge.animated === true,
+      class: change ? `change-${change}` : "",
       markerEnd: {
         type: MarkerType.ArrowClosed,
-        color: dark.value ? "#64748b" : "#94a3b8",
-        // The arrow shape fills about a quarter of the marker box.
-        width: 28,
-        height: 28,
+        color: change
+          ? changeColors[change][dark.value ? 1 : 0]
+          : edge.animated
+            ? flowColor.value
+            : dark.value
+              ? "#64748b"
+              : "#94a3b8",
+        // The arrow shape fills about a quarter of the marker box, scaled by the stroke width.
+        width: 20,
+        height: 20,
       },
+      labelBgPadding: [6, 3] as [number, number],
+      labelBgBorderRadius: 4,
+      // Narrower than the default, so neighboring tracks don't catch each other's clicks.
+      interactionWidth: 12,
       selected: selection.value === id,
       // Vue Flow keeps previous values for omitted fields, so unmarked edges reset them explicitly.
       style: {},
       labelStyle: {},
     };
-    if (!marks.value.has(id)) return flowEdge;
-    return Object.assign(flowEdge, {
-      style: { stroke: "#d97706", strokeWidth: 3 },
-      // Marker size scales with stroke width, so this matches the unmarked arrows.
-      markerEnd: { type: MarkerType.ArrowClosed, color: "#d97706", width: 10, height: 10 },
-      labelStyle: { fill: dark.value ? "#fcd34d" : "#b45309", fontWeight: 600 },
-    });
+    if (!marks.value.has(id)) return [flowEdge];
+    return [
+      Object.assign(flowEdge, {
+        style: { stroke: "#d97706", strokeWidth: 3 },
+        // Marker size scales with stroke width, so this matches the unmarked arrows.
+        markerEnd: { type: MarkerType.ArrowClosed, color: "#d97706", width: 10, height: 10 },
+        labelStyle: { fill: dark.value ? "#fcd34d" : "#b45309", fontWeight: 600 },
+      }),
+    ];
   }),
 );
 
 function labelFor(target: string): string {
-  const node = findNode(target);
+  const node = findNode(target) ?? findGroup(target);
   if (node) return node.label;
   const edge = findEdge(target);
   return edge ? `${labelFor(edge.source)} → ${labelFor(edge.target)}` : target;
@@ -426,14 +627,16 @@ function promptRename(target: string, point: Point) {
   }
 }
 
-// Places the node at `point`, or leaves it to auto layout when nothing is pinned and `pin` is false.
+// Places the node at `point`, in the group there, or leaves it to auto layout when nothing is pinned
+// and `pin` is false.
 function promptAddNode(point: Point, pin: boolean) {
+  const group = pin ? groupAt(point) : undefined;
   openPrompt(point, {
     title: "New node",
     placeholder: "Orders Service",
     submit: (label) => {
       if (!label) return;
-      const node = { id: uniqueId(label), label, kind: "service" as const };
+      const node: DiagramNode = { id: uniqueId(label), label, kind: "service", group };
       const position = pin || pinned.value ? flowPosition(point) : undefined;
       void apply([{ type: "upsert-node", node, ...(position && { position }) }]);
       selection.value = node.id;
@@ -447,18 +650,27 @@ function updateNode(patch: Partial<DiagramNode>) {
   }
 }
 
-function updateEdgeLabel(event: Event) {
-  if (selectedEdge.value) {
-    void apply([
-      { type: "upsert-edge", edge: { ...selectedEdge.value, label: fieldValue(event) } },
-    ]);
-  }
+// The innermost group at `point`; groups come after the outer group that holds them.
+function groupAt(point: Point) {
+  const at = flow.value?.screenToFlowCoordinate(point);
+  if (!at) return undefined;
+  return groups.value.findLast(
+    ({ box }) =>
+      at.x >= box.x && at.x <= box.x + box.width && at.y >= box.y && at.y <= box.y + box.height,
+  )?.id;
+}
+
+function updateEdge(edge: DiagramEdge, patch: Partial<DiagramEdge>) {
+  void apply([{ type: "upsert-edge", edge: { ...edge, ...patch } }]);
 }
 
 function remove(target: string) {
   const edge = findEdge(target);
   if (findNode(target)) void apply([{ type: "remove-node", id: target }]);
-  else if (edge) void apply([{ type: "remove-edge", source: edge.source, target: edge.target }]);
+  else if (edge) {
+    const { source, target: to, ordinal } = edge;
+    void apply([{ type: "remove-edge", source, target: to, ordinal }]);
+  }
   if (selection.value === target) selection.value = undefined;
 }
 
@@ -467,17 +679,20 @@ function toggleMark(target: string) {
 }
 
 // Selects an element from the sidebar and brings it into view.
+// Groups can't be selected, so focusing one only brings it into view.
 function focus(target: string) {
-  selection.value = target;
+  const group = findGroup(target) !== undefined;
+  if (!group) selection.value = target;
   // Small screens reveal the selection above the sheet instead (see the selection watcher).
-  if (small.matches) return;
+  if (small.matches && !group) return;
   const edge = findEdge(target);
   const ids = edge ? [edge.source, edge.target] : [target];
-  void flow.value?.fitView({ nodes: ids, duration: 300, maxZoom: 1.2, padding: 0.4 });
+  void flow.value?.fitView({ nodes: ids.map(flowId), duration: 300, maxZoom: 1.2, padding: 0.4 });
 }
 
 function elementMenu(target: string, point: Point): MenuItem[] {
   const isNode = findNode(target) !== undefined;
+  const edge = findEdge(target);
   return [
     { label: "Add note", shortcut: "N", action: () => promptNote(target, "note", point) },
     { label: "Add question", shortcut: "Q", action: () => promptNote(target, "question", point) },
@@ -491,6 +706,14 @@ function elementMenu(target: string, point: Point): MenuItem[] {
       shortcut: "F2",
       action: () => promptRename(target, point),
     },
+    ...(edge
+      ? [
+          {
+            label: edge.animated ? "Stop animation" : "Animate",
+            action: () => updateEdge(edge, { animated: !edge.animated }),
+          },
+        ]
+      : []),
     {
       label: isNode ? "Delete node" : "Delete connection",
       shortcut: "Del",
@@ -520,7 +743,7 @@ function paneMenu(point: Point): MenuItem[] {
 
 function openMenu(event: MouseEvent | TouchEvent, items: MenuItem[]) {
   event.preventDefault();
-  if (readOnly) return;
+  if (locked.value) return;
   prompt.value = undefined;
   menu.value = { ...place(eventPoint(event), { width: 208, height: 36 * items.length }), items };
 }
@@ -533,7 +756,7 @@ function onElementMenu(target: string, event: MouseEvent | TouchEvent) {
 function onElementDoubleClick({ event, ...element }: NodeMouseEvent | EdgeMouseEvent) {
   const target = "node" in element ? element.node.id : element.edge.id;
   selection.value = target;
-  if (readOnly) return;
+  if (locked.value) return;
   clearTimeout(sheetTimer);
   promptNote(target, "note", eventPoint(event));
 }
@@ -541,7 +764,7 @@ function onElementDoubleClick({ event, ...element }: NodeMouseEvent | EdgeMouseE
 function onCanvasDoubleClick(event: MouseEvent) {
   const onPane =
     event.target instanceof Element && event.target.classList.contains("vue-flow__pane");
-  if (onPane && !readOnly) promptNote(undefined, "note", eventPoint(event));
+  if (onPane && !locked.value) promptNote(undefined, "note", eventPoint(event));
 }
 
 function onDragStop({ nodes: moved }: NodeDragEvent) {
@@ -563,13 +786,16 @@ function select(id?: string) {
   if (!skip) selection.value = id;
 }
 
+// Connecting two nodes that are already connected adds a parallel edge.
 function onConnect({ source, target }: Connection) {
   connected = true;
-  const id = edgeId({ source, target });
+  const ordinal =
+    diagram.value.edges.filter((edge) => edge.source === source && edge.target === target).length +
+    1;
+  const edge = { source, target, label: "", ...(ordinal > 1 && { ordinal }) };
+  const id = edgeId(edge);
   selection.value = id;
-  void apply([{ type: "upsert-edge", edge: { source, target, label: "" } }]).then(() =>
-    promptRename(id, pointer),
-  );
+  void apply([{ type: "upsert-edge", edge }]).then(() => promptRename(id, pointer));
 }
 
 function onKeydown(event: KeyboardEvent) {
@@ -582,8 +808,10 @@ function onKeydown(event: KeyboardEvent) {
       menu.value = undefined;
       prompt.value = undefined;
     } else selection.value = undefined;
-  } else if (readOnly) {
-    // The viewer has no editing shortcuts.
+  } else if (key === "v" && comparison.value) {
+    showOther.value = !showOther.value;
+  } else if (locked.value) {
+    // The viewer and a comparison have no editing shortcuts.
   } else if (key === "n" || key === "q") {
     event.preventDefault();
     promptNote(target, key === "q" ? "question" : "note", pointer);
@@ -630,10 +858,10 @@ function closePopovers() {
         :key="files?.name"
         :nodes
         :edges
-        :class="readOnly && 'read-only'"
+        :class="locked && 'read-only'"
         :delete-key-code="null"
-        :nodes-draggable="!readOnly"
-        :nodes-connectable="!readOnly"
+        :nodes-draggable="!locked"
+        :nodes-connectable="!locked"
         :zoom-on-double-click="false"
         :min-zoom="0.2"
         fit-view-on-init
@@ -652,6 +880,12 @@ function closePopovers() {
       >
         <template #node-diagram="props">
           <DiagramNodeView v-bind="props" />
+        </template>
+        <template #node-group="props">
+          <DiagramGroupView v-bind="props" />
+        </template>
+        <template #node-timeline>
+          <DiagramTimeline />
         </template>
         <template #edge-diagram="props">
           <DiagramEdgeView v-bind="props" />
@@ -682,7 +916,33 @@ function closePopovers() {
         class="hidden"
         @change="onFiles"
       />
-      <CanvasLegend v-if="ready" />
+      <CanvasLegend v-if="ready" :comparing="comparison !== undefined" />
+      <div
+        v-if="ready && comparison"
+        class="segmented absolute left-1/2 top-3 z-10 -translate-x-1/2 bg-white shadow-sm dark:bg-slate-800"
+        role="group"
+        aria-label="Version"
+        title="Switch versions (V)"
+      >
+        <button
+          type="button"
+          class="px-3 py-1.5"
+          :class="showOther ? 'segment-on' : 'segment-off'"
+          :aria-pressed="showOther"
+          @click="showOther = true"
+        >
+          {{ otherName }}
+        </button>
+        <button
+          type="button"
+          class="px-3 py-1.5"
+          :class="showOther ? 'segment-off' : 'segment-on'"
+          :aria-pressed="!showOther"
+          @click="showOther = false"
+        >
+          {{ files?.name }}
+        </button>
+      </div>
       <button
         v-if="!sidebarOpen"
         type="button"
@@ -850,6 +1110,14 @@ function closePopovers() {
             {{ copied ? "Copied" : "Copy prompt" }}
           </button>
         </p>
+        <div v-if="versionOptions.length > 1" class="grid gap-1.5">
+          <SelectMenu v-model="compareRef" label="Compare with" :options="versionOptions" />
+          <p v-if="comparison" class="muted text-xs">
+            Against {{ otherName }}: {{ changeCounts.added }} added ·
+            {{ changeCounts.changed }} changed · {{ changeCounts.removed }} removed. Press V to
+            switch between them; the canvas doesn't edit meanwhile.
+          </p>
+        </div>
         <p v-if="readOnly" class="muted text-xs">Read-only view of the diagram files.</p>
         <p v-else-if="!selection" class="muted text-xs">
           Mark elements and add questions; the agent reads them from these files.
@@ -1032,15 +1300,33 @@ function closePopovers() {
                   :options="kindOptions"
                   @update:model-value="(kind) => updateNode({ kind })"
                 />
+                <SelectMenu
+                  v-if="diagram.groups.length > 0"
+                  class="col-span-2"
+                  label="Group"
+                  :model-value="selectedNode.group ?? ''"
+                  :options="groupOptions"
+                  @update:model-value="(group) => updateNode({ group: group || undefined })"
+                />
               </div>
-              <input
-                v-else-if="selectedEdge"
-                class="field"
-                aria-label="Label"
-                placeholder="Label"
-                :value="selectedEdge.label"
-                @change="updateEdgeLabel"
-              />
+              <template v-else-if="selectedEdge">
+                <input
+                  class="field"
+                  aria-label="Label"
+                  placeholder="Label"
+                  :value="selectedEdge.label"
+                  @change="updateEdge(selectedEdge, { label: fieldValue($event) })"
+                />
+                <label class="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    class="size-4 accent-[#195ed8] dark:accent-[#529aff]"
+                    :checked="selectedEdge.animated === true"
+                    @change="updateEdge(selectedEdge, { animated: !selectedEdge.animated })"
+                  />
+                  Animated
+                </label>
+              </template>
               <button
                 type="button"
                 class="button justify-self-start border-red-200 text-red-600 dark:border-red-900 dark:text-red-400"

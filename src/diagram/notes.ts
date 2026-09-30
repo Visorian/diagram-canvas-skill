@@ -5,6 +5,7 @@
 //     → Payments team                           its answer, on the next line
 //   - [ ] #risk @orders Can payment retry?      tagged question
 //   - @gateway->auth Token cache TTL is 5 min   note
+//   - @gateway->auth#2 Retries after a timeout  note on the second edge from gateway to auth
 //   - [ ] Split search out?                     no @target: about the whole diagram
 export interface Note {
   kind: "note" | "question";
@@ -26,7 +27,7 @@ type NoteLine = { type: "note"; note: Note } | { type: "other"; text: string };
 
 const answerPattern = /^\s*→\s*(.+)$/;
 const notePattern =
-  /^- (?:\[([ x])\] (?:(>user) )?(?:#([\w-]+) )?)?(?:@([\w-]+(?:->[\w-]+)?) )?(.+)$/;
+  /^- (?:\[([ x])\] (?:(>user) )?(?:#([\w-]+) )?)?(?:@([\w-]+(?:->[\w-]+(?:#\d+)?)?) )?(.+)$/;
 
 function parseLine(text: string): NoteLine {
   const match = notePattern.exec(text.trim());

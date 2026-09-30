@@ -7,40 +7,39 @@ import {
   type GraphNode,
 } from "@vue-flow/core";
 import { computed } from "vue";
-import type { EdgeRoute } from "./diagram/layout";
+import { step } from "./diagram/connections";
+import type { Connection } from "./diagram/layout";
 
-// Smooth step edge that avoids nodes. An edge across several rows follows the route the auto layout
-// kept free for it. Otherwise, when the plain smooth step would cut through a node, and for
-// loop-backs to a node above, the edge leaves through the gap below its source, follows the nearest
-// free vertical corridor and enters its target from the gap above it.
-const props = defineProps<EdgeProps<{ route?: EdgeRoute }>>();
+// Smooth step edge that avoids nodes. In a sequence, an edge runs across its row at `step`, between
+// the nodes' timelines wherever the nodes are. Elsewhere it follows the connection the auto layout
+// drew for it while its ends stay where the layout placed them. Otherwise, when the plain smooth
+// step would cut through a node, and for back edges to a node above, the edge leaves through the
+// gap below its source, follows the nearest free vertical channel and enters its target from the
+// gap above it; `offset` moves both ends sideways, which keeps parallel edges apart.
+const props = defineProps<EdgeProps<{ connection?: Connection; step?: number; offset?: number }>>();
 const { getEdges, getNodes } = useVueFlow();
 const gap = 20;
-const lane = 24;
-const radius = 5;
+const channelOffset = 24;
+const radius = 8;
 
 type Point = [x: number, y: number];
 
-// Edges leave a node at its bottom center and enter one at its top center.
-const exitPoint = ({
-  computedPosition: { x, y },
-  dimensions: { width, height },
-}: GraphNode): Point => [x + width / 2, y + height];
-const entryPoint = ({ computedPosition: { x, y }, dimensions: { width } }: GraphNode): Point => [
-  x + width / 2,
-  y,
-];
-const samePoint = (point: Point, other: Point | undefined) =>
-  other !== undefined && Math.abs(point[0] - other[0]) < 1 && Math.abs(point[1] - other[1]) < 1;
+const centerX = ({ computedPosition: { x }, dimensions: { width } }: GraphNode) => x + width / 2;
+
+const placedAt = ({ computedPosition: { x, y } }: GraphNode, [placedX, placedY]: Point) =>
+  Math.abs(x - placedX) < 1 && Math.abs(y - placedY) < 1;
 
 // Node boxes shrunk by a pixel, so segments that only touch a node's border don't count as hits.
+// Group boxes are only a background.
 const boxes = computed(() =>
-  getNodes.value.map(({ computedPosition: { x, y }, dimensions: { width, height } }) => ({
-    left: x + 1,
-    right: x + width - 1,
-    top: y + 1,
-    bottom: y + height - 1,
-  })),
+  getNodes.value
+    .filter((node) => node.type === "diagram")
+    .map(({ computedPosition: { x, y }, dimensions: { width, height } }) => ({
+      left: x + 1,
+      right: x + width - 1,
+      top: y + 1,
+      bottom: y + height - 1,
+    })),
 );
 const crossesNode = ([x1, y1]: Point, [x2, y2]: Point) =>
   boxes.value.some(
@@ -72,21 +71,34 @@ function roundedPath(points: Point[]) {
     .join(" ");
 }
 
-// The auto layout's route holds while both ends sit where it placed them and nothing moved into it.
+// The auto layout's connection holds while both ends sit where it placed them and nothing moved
+// into it.
 const laidOut = computed(() => {
-  const route = props.data?.route;
-  if (!route) return undefined;
-  if (!samePoint(exitPoint(props.sourceNode), route.points[0])) return undefined;
-  if (!samePoint(entryPoint(props.targetNode), route.points.at(-1))) return undefined;
-  const { sourceX, sourceY, targetX, targetY } = props;
-  const points: Point[] = [[sourceX, sourceY], ...route.points.slice(1, -1), [targetX, targetY]];
+  const row = props.data?.step;
+  if (row !== undefined) {
+    const isLoop = props.source === props.target;
+    const { points, label } = step(
+      centerX(props.sourceNode),
+      centerX(props.targetNode),
+      row,
+      String(props.label ?? ""),
+      isLoop,
+    );
+    return { path: roundedPath(points), labelX: label[0], labelY: label[1] };
+  }
+  const connection = props.data?.connection;
+  if (!connection) return undefined;
+  const { source, target, points, label } = connection;
+  if (!placedAt(props.sourceNode, source) || !placedAt(props.targetNode, target)) return undefined;
   if (!isClear(points)) return undefined;
-  return { path: roundedPath(points), labelX: route.label[0], labelY: route.label[1] };
+  return { path: roundedPath(points), labelX: label[0], labelY: label[1] };
 });
 
-const route = computed(() => {
+const drawn = computed(() => {
   if (laidOut.value) return laidOut.value;
-  const { sourceX, sourceY, targetX, targetY } = props;
+  const offset = props.data?.offset ?? 0;
+  const { sourceY, targetY } = props;
+  const [sourceX, targetX] = [props.sourceX + offset, props.targetX + offset];
   const middle = (sourceY + targetY) / 2;
   if (
     targetY > sourceY &&
@@ -97,8 +109,14 @@ const route = computed(() => {
       [targetX, targetY],
     ])
   ) {
-    const [path, labelX, labelY] = getSmoothStepPath(props);
-    return { path, labelX, labelY };
+    const [path, labelX, labelY] = getSmoothStepPath({
+      ...props,
+      sourceX,
+      targetX,
+      borderRadius: radius,
+    });
+    // Parallel steps share their middle height, so their labels move apart vertically too.
+    return { path, labelX, labelY: labelY + offset * 1.5 };
   }
   const below = sourceY + gap;
   const above = targetY - gap;
@@ -110,23 +128,26 @@ const route = computed(() => {
     [targetX, above],
     [targetX, targetY],
   ];
-  // Corridors run beside the nodes in the edge's vertical range, shifted a little per edge so
+  // Channels run beside the nodes in the edge's vertical range, shifted a little per edge so
   // parallel edges stay apart. The first clear one with the shortest detour wins.
   const shift = ((getEdges.value.findIndex((edge) => edge.id === props.id) % 3) - 1) * 8;
   const inRange = boxes.value.filter(
     (box) => box.top < Math.max(below, above) && box.bottom > Math.min(below, above),
   );
-  const corridors = [
+  const channels = [
     sourceX,
     targetX,
-    ...inRange.flatMap((box) => [box.left - lane + shift, box.right + lane + shift]),
+    ...inRange.flatMap((box) => [
+      box.left - channelOffset + shift,
+      box.right + channelOffset + shift,
+    ]),
   ].toSorted(
     (a, b) =>
       Math.abs(sourceX - a) + Math.abs(targetX - a) - Math.abs(sourceX - b) - Math.abs(targetX - b),
   );
   const x =
-    corridors.find((candidate) => isClear(via(candidate))) ??
-    Math.max(sourceX, targetX, ...inRange.map((box) => box.right)) + lane;
+    channels.find((candidate) => isClear(via(candidate))) ??
+    Math.max(sourceX, targetX, ...inRange.map((box) => box.right)) + channelOffset;
   // The label sits on the last bend above the target, where it is easy to tell apart.
   return { path: roundedPath(via(x)), labelX: (x + targetX) / 2, labelY: above };
 });
@@ -135,9 +156,9 @@ const route = computed(() => {
 <template>
   <BaseEdge
     :id
-    :path="route.path"
-    :label-x="route.labelX"
-    :label-y="route.labelY"
+    :path="drawn.path"
+    :label-x="drawn.labelX"
+    :label-y="drawn.labelY"
     :label
     :label-style
     :label-show-bg

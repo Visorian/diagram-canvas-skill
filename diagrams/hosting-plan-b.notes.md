@@ -1,0 +1,1 @@
+- Plan B of the hosting architecture. Pick hosting-plan-a under "Compare with" to see what it adds, changes and removes.

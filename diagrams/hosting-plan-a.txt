@@ -1,0 +1,19 @@
+# Hosting, plan A: lift and shift onto virtual machines
+# layout: architecture
+users: Customers [ui]
+[[azure: Azure subscription]]
+dns: Traffic Manager [ui]
+[vnet: Virtual network]
+web: Web VM scale set
+app: App server VMs
+sql: SQL Server VM [db]
+[ops: Operations]
+backup: Backup vault [db]
+logs: Log Analytics [db]
+
+users => dns: HTTPS
+dns => web
+web => app
+app -> sql
+sql -> backup: nightly
+vnet -> logs: diagnostics

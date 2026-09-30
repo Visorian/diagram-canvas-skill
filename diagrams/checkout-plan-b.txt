@@ -1,0 +1,22 @@
+# Checkout, plan B: screen for fraud, retry declines, backorder instead of refunding
+[shop: Shop]
+cart: Submit cart [ui]
+validate: Validate cart
+[payments: Payments]
+fraud: Check fraud risk
+charge: Charge card
+[fulfillment: Fulfillment]
+reserve: Reserve stock
+backorder: Backorder item
+ship: Create shipment
+notify: Email confirmation
+
+cart => validate
+validate => fraud
+fraud => charge: low risk
+charge -> charge: retry declined
+charge => reserve: paid
+reserve => ship: in stock
+reserve -> backorder: out of stock
+backorder -> ship: restocked
+ship => notify

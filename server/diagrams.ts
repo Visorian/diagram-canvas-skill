@@ -16,6 +16,7 @@ import {
   type Op,
   type PartSuffix,
 } from "../src/diagram/format.ts";
+import { isRef, listVersions, readVersion } from "./versions.ts";
 
 const namePattern = /^[\w-]+$/;
 
@@ -164,10 +165,14 @@ export function createDiagramsService(dir: string, allowedHosts: readonly string
       request.on("close", () => clients.delete(response));
     },
 
-    // `GET /` lists diagrams, `GET /<name>` loads one, `POST /<name>` applies ops.
+    // `GET /` lists diagrams, `GET /<name>` loads one, `POST /<name>` applies ops. From the git
+    // history, `GET /<name>/versions` lists earlier versions and `GET /<name>/at/<ref>` loads one.
     async api(request: IncomingMessage, response: ServerResponse, url: string) {
       if (reject(request, response)) return;
-      const name = decodeURIComponent(url.split("?")[0]?.replace(/^\//, "") ?? "");
+      const [name = "", action, ref] = (url.split("?")[0] ?? "")
+        .replace(/^\//, "")
+        .split("/")
+        .map(decodeURIComponent);
       const send = (status: number, body: unknown) => {
         response.statusCode = status;
         response.setHeader("content-type", "application/json");
@@ -175,6 +180,12 @@ export function createDiagramsService(dir: string, allowedHosts: readonly string
       };
       if (name === "") return send(200, await list());
       if (!namePattern.test(name)) return send(400, { error: "invalid diagram name" });
+      if (action === "versions") return send(200, await listVersions(root, name));
+      if (action === "at") {
+        if (ref === undefined || !isRef(ref)) return send(400, { error: "invalid version" });
+        return send(200, await readVersion(root, name, ref));
+      }
+      if (action !== undefined) return send(404, { error: "not found" });
       if (request.method !== "POST") return send(200, await load(name));
       const ops: unknown = JSON.parse(await text(request));
       return isOps(ops) ? send(200, await save(name, ops)) : send(400, { error: "invalid ops" });

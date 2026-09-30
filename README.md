@@ -41,6 +41,9 @@ On the canvas:
 - Drag from a node's dot to connect it, and right-click for more actions. The `?` button lists all
   shortcuts.
 - Answer the agent's questions under "Waiting on you". The answer is saved with the question.
+- Pick another diagram, such as a second plan, or a commit under "Compare with" to see how they
+  differ. Press `V` to switch between both; the current one highlights what it added, changed or
+  removed.
 - Press "Send to agent" to hand the diagram back, with an optional message about the selected
   element. The agent waits for it in the background and sees what you changed. If it isn't
   waiting, use "Copy prompt" and paste the prompt into the chat.
@@ -91,7 +94,10 @@ jobs:
 ```
 
 Link to a single diagram with `?diagram=<name>`, like this repo's
-[example](https://visorian.github.io/diagram-canvas-skill/?diagram=platform).
+[example](https://visorian.github.io/diagram-canvas-skill/?diagram=platform), and to a comparison
+with `&compare=<other>`, like two plans for a
+[checkout workflow](https://visorian.github.io/diagram-canvas-skill/?diagram=checkout-plan-b&compare=checkout-plan-a)
+and a [hosting architecture](https://visorian.github.io/diagram-canvas-skill/?diagram=hosting-plan-b&compare=hosting-plan-a).
 
 The online viewer is only available when GitHub Pages is enabled and the repository is public, or on
 GitHub Enterprise Cloud. There, a private or internal repository can publish the site privately, so

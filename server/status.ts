@@ -6,10 +6,11 @@ import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import {
   edgeId,
+  edgeStatement,
+  nodeStatement,
   parseDiagram,
   partNames,
   toDiagramFiles,
-  type DiagramEdge,
   type DiagramNode,
 } from "../src/diagram/format.ts";
 import { parseNotes, type Note } from "../src/diagram/notes.ts";
@@ -32,10 +33,8 @@ const isSnapshot = (value: unknown): value is Snapshot =>
       Array.isArray(seen.marks),
   );
 
-const nodeLine = ({ id, label, kind }: DiagramNode) =>
-  `${id}: ${label}${kind === "service" ? "" : ` [${kind}]`}`;
-const edgeLine = (edge: DiagramEdge) =>
-  `${edge.source} -> ${edge.target}${edge.label ? `: ${edge.label}` : ""}`;
+const nodeLine = (node: DiagramNode) =>
+  `${nodeStatement(node)}${node.group ? ` in [${node.group}]` : ""}`;
 
 const noteKey = (note: Note) =>
   `${note.kind} ${note.forUser ? ">user " : ""}${note.target} ${note.text}`;
@@ -106,7 +105,7 @@ export async function diagramStatus(dir: string, previous?: Snapshot) {
             (node) => node.id,
             (node) => `node ${nodeLine(node)}`,
           ),
-          ...diff(before.edges, edges, edgeId, (edge) => `edge ${edgeLine(edge)}`),
+          ...diff(before.edges, edges, edgeId, (edge) => `edge ${edgeStatement(edge)}`),
           ...diff(parseNotes(seen.notes), entries, noteKey, describeNote),
           ...diff(seen.marks, files.marks, String, (mark) => `mark ${describe(mark)}`),
         ];

@@ -1,0 +1,18 @@
+# Checkout, plan A: charge, reserve and ship in one go
+[shop: Shop]
+cart: Submit cart [ui]
+validate: Validate cart
+[payments: Payments]
+charge: Charge card
+refund: Refund card
+[fulfillment: Fulfillment]
+reserve: Reserve stock
+ship: Create shipment
+notify: Send confirmation
+
+cart => validate
+validate => charge
+charge => reserve: paid
+reserve => ship: in stock
+reserve -> refund: out of stock
+ship => notify
