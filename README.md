@@ -11,7 +11,7 @@ To point the agent at something, you mark nodes and connections and leave notes 
 them. The agent answers or changes the diagram, and asks you questions of its own, which you
 answer on the canvas.
 
-![The canvas with a shop platform diagram, two marked elements, questions waiting on the user and questions for the agent](docs/screenshot.png)
+![The canvas with a shop platform diagram in three groups and its main flow animated, compared with an earlier commit that highlights an added event bus, a renamed service and a removed mailer, two marked elements and questions for the user and the agent, split diagonally into the light and the dark theme](docs/screenshot.png)
 
 ## Install
 

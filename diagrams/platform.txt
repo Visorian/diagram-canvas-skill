@@ -1,23 +1,26 @@
 # Shop platform
 # tag: risk #dc2626
 # tag: decision #2563eb
+[edge: Edge]
 web: Web App [ui]
 gateway: API Gateway
 auth: Auth Service
+[services: Services]
 orders: Orders Service
 payments: Payments Service
 inventory: Inventory Service
+[backing: Backing services]
 orders-db: Orders DB [db]
-inventory-db: Inventory DB [db]
 events: Event Bus [queue]
+inventory-db: Inventory DB [db]
 stripe: Stripe [ext]
 
-web -> gateway: HTTPS
+web => gateway: HTTPS
 gateway -> auth: verify token
-gateway -> orders: REST
+gateway => orders: REST
 orders -> orders-db: SQL
-orders -> events: OrderPlaced
+orders => events: OrderPlaced
 events -> inventory: OrderPlaced
-events -> payments: OrderPlaced
+events => payments: OrderPlaced
 inventory -> inventory-db: SQL
-payments -> stripe: charge
+payments => stripe: charge
