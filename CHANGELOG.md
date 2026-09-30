@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.0](https://github.com/Visorian/diagram-canvas-skill/compare/v1.5.1...v1.6.0) (2026-09-30)
+
+
+### Features
+
+* groups, architecture and sequence layouts, animated edges and comparing versions ([#16](https://github.com/Visorian/diagram-canvas-skill/issues/16)) ([48cfd0b](https://github.com/Visorian/diagram-canvas-skill/commit/48cfd0bac0df397b8ae312726bb3037e3636d60c))
+
 ## [1.5.1](https://github.com/Visorian/diagram-canvas-skill/compare/v1.5.0...v1.5.1) (2026-09-29)
 
 
