@@ -1,0 +1,19 @@
+# Hosting, plan B: managed platform services
+# layout: architecture
+users: Customers [ui]
+[[azure: Azure subscription]]
+door: Front Door [ui]
+[vnet: Virtual network]
+apps: Container Apps
+sql: Azure SQL Database [db]
+bus: Service Bus [queue]
+[ops: Operations]
+logs: Log Analytics [db]
+vault: Key Vault
+
+users => door: HTTPS
+door => apps
+apps -> sql
+apps -> bus: orders
+apps -> vault: secrets
+vnet -> logs: diagnostics

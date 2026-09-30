@@ -2,12 +2,16 @@ import { computed, ref, shallowRef } from "vue";
 import { embedded, readOnly } from "../mode";
 import {
   isDiagramFiles,
+  isVersionFiles,
+  isVersions,
   parseDiagram,
   partPattern,
   toDiagramFiles,
   type DiagramFiles,
   type Op,
   type PartSuffix,
+  type Version,
+  type VersionFiles,
 } from "./format";
 
 const isNames = (value: unknown): value is string[] =>
@@ -18,6 +22,24 @@ async function request<T>(path: string, guard: (value: unknown) => value is T, i
   const body: unknown = await response.json();
   if (!response.ok || !guard(body)) throw new Error(`/__diagrams/${path}: ${JSON.stringify(body)}`);
   return body;
+}
+
+// Earlier versions come from the git history of the diagrams folder.
+const versions = (name: string) => request(`${encodeURIComponent(name)}/versions`, isVersions);
+const versionAt = (name: string, version: string) =>
+  request(`${encodeURIComponent(name)}/at/${encodeURIComponent(version)}`, isVersionFiles);
+
+// Another diagram of the folder, as a version to compare with.
+const peek = async (name: string): Promise<VersionFiles | undefined> => {
+  const { source, layout } = await request(encodeURIComponent(name), isDiagramFiles);
+  return { ref: name, source, layout };
+};
+
+// Links point at a diagram with `?diagram=<name>`, next to other parameters such as `compare`.
+function showInUrl(name: string) {
+  const url = new URL(location.href);
+  url.searchParams.set("diagram", name);
+  history.replaceState(null, "", url);
 }
 
 function useStore() {
@@ -41,7 +63,7 @@ function useServerDiagram() {
 
   async function open(name: string) {
     accept(await request(name, isDiagramFiles));
-    history.replaceState(null, "", `?diagram=${encodeURIComponent(name)}`);
+    showInUrl(name);
   }
 
   async function apply(ops: Op[]) {
@@ -65,7 +87,15 @@ function useServerDiagram() {
     if (initial) await open(initial);
   })();
 
-  return { ...store, open, apply, load: async (_files: Iterable<File>) => {} };
+  return {
+    ...store,
+    open,
+    apply,
+    versions,
+    versionAt,
+    peek,
+    load: async (_files: Iterable<File>) => {},
+  };
 }
 
 // Viewer: diagrams are embedded in the page or come from files the user opens; nothing is written.
@@ -99,7 +129,7 @@ function useFileDiagram() {
   async function open(name: string) {
     files.value = loaded.get(name);
     // Links to a published page can point at one of its diagrams.
-    if (files.value) history.replaceState(null, "", `?diagram=${encodeURIComponent(name)}`);
+    if (files.value) showInUrl(name);
   }
 
   if (embedded !== undefined) {
@@ -109,7 +139,20 @@ function useFileDiagram() {
     }
   }
 
-  return { ...store, open, apply: async (_ops: Op[]) => {}, load };
+  return {
+    ...store,
+    open,
+    apply: async (_ops: Op[]) => {},
+    // Without a server there is no history to compare with.
+    versions: async (_name: string): Promise<Version[]> => [],
+    versionAt: async (_name: string, _version: string): Promise<VersionFiles | undefined> =>
+      undefined,
+    peek: async (name: string): Promise<VersionFiles | undefined> => {
+      const other = loaded.get(name);
+      return other && { ref: name, source: other.source, layout: other.layout };
+    },
+    load,
+  };
 }
 
 export const useDiagram = readOnly ? useFileDiagram : useServerDiagram;

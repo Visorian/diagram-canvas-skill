@@ -1,0 +1,1 @@
+- Plan B of the checkout workflow. Pick checkout-plan-a under "Compare with" to see what it adds, changes and removes.

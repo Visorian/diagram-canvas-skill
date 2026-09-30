@@ -20,16 +20,55 @@ Diagrams are plain text files in the project's `diagrams/` folder. The user work
 ```
 # comment
 # tag: risk #d97706
-orders: Orders Service          node, kind defaults to service
+web: Web App [ui]               node, kind defaults to service
+[backend: Backend]              group of the nodes below it, up to the next group
+orders: Orders Service
 orders-db: Orders DB [db]       kinds: service, db, queue, ext, ui
+web => orders: checkout         animated edge
 orders -> orders-db: SQL        edge, label optional; unknown ids become service nodes
 ```
 
 - Kinds: `service` for a service or step, `db` for data or state, `queue` for queues, topics and event buses, `ui` for entry points like apps or CLI commands, `ext` for systems outside the diagram.
-- Ids use letters, digits, `_` and `-`. An edge's id is `source->target`, so there is one edge per pair.
+- Ids use letters, digits, `_` and `-`, and name one node or group. An edge's id is `source->target`, also with `=>`. The same pair again is a parallel edge, counted in file order: the second `a -> b` is `a->b#2`. An edge from a node to itself is a loop.
 - Define question tags once in the model as `# tag: name #rrggbb`, named like ids, with any hex color.
-- Declare nodes in reading order, for workflows the order of the steps. The auto layout follows the edges and keeps the file order within a row. In a cycle, the edges back to earlier nodes are drawn as loop-backs.
+- Group nodes when the diagram has clear areas, such as layers, teams or deployment units. Each group is drawn as a box. Nodes above the first group belong to none.
+- Use `=>` for the few connections a reader should follow, such as the main request path. The canvas animates them.
 - Keep labels to about 20 characters. Put details, commands and `file:line` references in notes.
+
+### Workflows
+
+The default layout follows the edges: nodes are layered top-down, and groups become columns side by side in file order. Declare nodes in reading order, for workflows the order of the steps; the layout keeps the file order within a layer. In a cycle, the edges back to earlier nodes are drawn as back edges; with groups, the edge that closes the cycle when following the edges from the first node.
+
+### Architecture diagrams
+
+```
+# layout: architecture
+[[region-a: Region A]]          outer group, up to the next outer group
+logs-a: Log Analytics [db]      its own nodes come first
+[hub-a: Hub network]            group inside it
+firewall-a: Azure Firewall
+[spoke-a: Spoke network]
+aks-a: Kubernetes
+[[shared: Shared resources]]
+acr: Container Registry
+hub-a -> spoke-a: peering       edges may start or end at a group
+aks-a -> acr: pull
+```
+
+For a system's structure rather than a flow, add `# layout: architecture`. The grouping then places everything and edges move nothing: outer groups are bands stacked in file order below the nodes and groups outside them, a band holds its own nodes and then its groups side by side, and each fills rows of up to three nodes in file order. Order nodes so that connected ones sit close. `[[ ]]` outer groups work in workflows too, as a box around the columns of their groups.
+
+### Sequences
+
+```
+# layout: sequence
+router: Router Plugin
+composables: Composables
+router -> composables: read key
+router -> composables: register key    parallel edge, its own row
+composables -> composables: verify     loop, a step the node takes on its own
+```
+
+For the order in which a few nodes exchange something, add `# layout: sequence`. Nodes become columns in file order, each with a timeline down through the rows, and every edge becomes a row in file order, so the rows read top-down as steps. Groups box their columns.
 
 ## Notes format
 
@@ -58,3 +97,4 @@ One entry per line, without line breaks inside, plus an optional answer line rig
 5. To point the user at elements, write their ids to `<name>.marks`.
 6. To share a read-only view, `node <this skill's directory>/canvas.js export diagrams --out diagrams.html` writes all diagrams into one HTML file. The skill's repository describes publishing it on GitHub Pages.
 7. The canvas saves the user's edits to the same files. Re-read a file before changing it so you don't overwrite their edits.
+8. To show the user how two versions differ, give them `http://127.0.0.1:7766/?diagram=<name>&compare=<other>`. `<other>` is another diagram in the folder, such as a second plan written as its own file, or `HEAD` or a commit hash for an earlier state from git. The canvas lays out both together and switches between them with V, highlighting what `<name>` added, changed and removed against `<other>`. The user can also pick one under "Compare with". The canvas doesn't edit while comparing.

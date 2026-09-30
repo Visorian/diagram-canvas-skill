@@ -13,6 +13,7 @@ const gestures = [
   ["F2", "Rename or label"],
   ["Del", "Delete"],
   ["Esc", "Close or deselect"],
+  ["V", "Switch between compared versions"],
 ] as const;
 
 async function toggle() {

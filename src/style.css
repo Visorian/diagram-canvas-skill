@@ -45,3 +45,69 @@
   background: #94a3b8;
   border-color: #0f172a;
 }
+
+.vue-flow__edge-path {
+  stroke-width: 1.5;
+}
+
+.vue-flow__edge-text {
+  font-size: 11px;
+}
+
+/* Vue Flow's animated edges, and their sample in the legend: dashes flow toward the target. */
+.vue-flow__edge.animated .vue-flow__edge-path,
+.legend-flow {
+  stroke: #195ed8;
+  stroke-dasharray: 6 10;
+  animation: edge-flow 1.2s linear infinite;
+}
+
+.dark .vue-flow__edge.animated .vue-flow__edge-path,
+.dark .legend-flow {
+  stroke: #529aff;
+}
+
+.vue-flow__edge.animated.selected .vue-flow__edge-path {
+  stroke-width: 2.5;
+}
+
+/* Changes against an earlier version, like on nodes (changes.ts). A removed edge stands still. */
+.vue-flow__edge.change-added .vue-flow__edge-path {
+  stroke: #00a795;
+}
+
+.vue-flow__edge.change-changed .vue-flow__edge-path {
+  stroke: #6050d6;
+}
+
+.vue-flow__edge.change-removed .vue-flow__edge-path {
+  stroke: #da1984;
+  stroke-dasharray: 5 4;
+  animation: none;
+  opacity: 0.6;
+}
+
+.dark .vue-flow__edge.change-added .vue-flow__edge-path {
+  stroke: #40c1ac;
+}
+
+.dark .vue-flow__edge.change-changed .vue-flow__edge-path {
+  stroke: #908cfe;
+}
+
+.dark .vue-flow__edge.change-removed .vue-flow__edge-path {
+  stroke: #f6459d;
+}
+
+@keyframes edge-flow {
+  to {
+    stroke-dashoffset: -32;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vue-flow__edge.animated .vue-flow__edge-path,
+  .legend-flow {
+    animation: none;
+  }
+}

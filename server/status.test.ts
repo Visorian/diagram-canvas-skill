@@ -59,7 +59,7 @@ test("lists what changed since the previous status", () =>
 
     await writeFile(
       join(dir, "shop.txt"),
-      "api: Gateway\ndb: DB [db]\napi -> db: SQL\nq: Q [queue]\n",
+      "api: Gateway\ndb: DB [db]\napi => db: SQL\n[infra]\nq: Q [queue]\n",
     );
     await writeFile(join(dir, "shop.notes.md"), "- [x] >user @db Which engine?\n  → Postgres\n");
     await writeFile(join(dir, "shop.marks"), "q\n");
@@ -76,8 +76,8 @@ test("lists what changed since the previous status", () =>
         "  marked: q (Q)",
         "  changed since the last status:",
         "    ~ node api: Gateway",
-        "    + node q: Q [queue]",
-        "    ~ edge api -> db: SQL",
+        "    + node q: Q [queue] in [infra]",
+        "    ~ edge api => db: SQL",
         "    ~ ✓ >user @db (DB) Which engine? → Postgres",
         "    - note Old note",
         "    + mark q (Q)",
