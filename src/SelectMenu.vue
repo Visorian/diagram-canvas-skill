@@ -58,7 +58,8 @@ function onFocusout(event: FocusEvent) {
 </script>
 
 <template>
-  <div ref="root" class="relative" @focusout="onFocusout">
+  <!-- min-w-0: a long label truncates instead of widening a grid or flex parent. -->
+  <div ref="root" class="relative min-w-0" @focusout="onFocusout">
     <button
       ref="button"
       type="button"
