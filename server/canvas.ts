@@ -6,7 +6,7 @@ import { dirname, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { brotliDecompressSync } from "node:zlib";
 import { createDiagramsService } from "./diagrams.ts";
-import { exportPage } from "./export.ts";
+import { exportPage, exportSvg } from "./export.ts";
 import { compressedHtml } from "./html.ts" with { type: "macro" };
 import { waitForHandoffs } from "./handoff.ts";
 import { runStatus } from "./status.ts";
@@ -21,6 +21,8 @@ const { values, positionals } = parseArgs({
     "allow-host": { type: "string", multiple: true, default: [] },
     // Where `export` writes the read-only page.
     out: { type: "string", default: "diagrams.html" },
+    diagram: { type: "string" },
+    compare: { type: "string" },
   },
 });
 const [command, dirArgument] = ["status", "wait", "export"].includes(positionals[0] ?? "")
@@ -40,16 +42,23 @@ if (command === "status" || command === "wait") {
   // Only `status` fails on invalid lines; for `wait` the output already lists them.
   process.exitCode = command === "status" && failed ? 1 : 0;
 } else if (command === "export") {
-  const { html, names } = await exportPage(page(), dir);
   const out = resolve(values.out);
-  if (names.length === 0) {
-    // An empty page is almost certainly the wrong folder.
-    console.error(`No diagrams in ${dir}, nothing exported.`);
-    process.exitCode = 1;
-  } else {
+  if (out.endsWith(".svg")) {
+    const svg = await exportSvg(dir, values.diagram, values.compare);
     await mkdir(dirname(out), { recursive: true });
-    await writeFile(out, html);
-    console.log(`Exported ${names.join(", ")} to ${out}`);
+    await writeFile(out, svg);
+    console.log(`Exported SVG to ${out}`);
+  } else {
+    const { html, names } = await exportPage(page(), dir);
+    if (names.length === 0) {
+      // An empty page is almost certainly the wrong folder.
+      console.error(`No diagrams in ${dir}, nothing exported.`);
+      process.exitCode = 1;
+    } else {
+      await mkdir(dirname(out), { recursive: true });
+      await writeFile(out, html);
+      console.log(`Exported ${names.join(", ")} to ${out}`);
+    }
   }
 } else {
   const service = createDiagramsService(dir, values["allow-host"]);

@@ -22,6 +22,8 @@ with these commands for this repo:
   the status, `node canvas.js wait [dir]` waits until the user hands a diagram over and
   `node canvas.js export [dir] [--out diagrams.html]` writes a read-only page with the diagrams
   embedded. Bun works as well as Node.
+  Use `--out diagram.svg --diagram name` for a dark, animated SVG image using automatic layout;
+  `--compare other` adds a comparison against another diagram in the same folder.
 - `dist/viewer.html`: read-only viewer. Open it in a browser and choose or drop a diagram's files.
 
 `action.yml` is a GitHub Action that exports a project's diagrams and uploads the page for GitHub
