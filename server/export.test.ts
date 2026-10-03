@@ -111,12 +111,39 @@ test("exports the single diagram and refuses invalid models", async () => {
   const dir = await mkdtemp(join(tmpdir(), "diagram-canvas-skill-svg-"));
   try {
     await writeFile(join(dir, "only.txt"), "a: A\nb: B\na => b: calls\n");
+    await writeFile(
+      join(dir, "only.notes.md"),
+      "- Whole diagram <context>\n- [ ] Confirm & review\n",
+    );
     const svg = await exportSvg(dir);
+    assert.match(
+      svg,
+      /<title id="diagram-title">only\nWhole diagram &lt;context&gt;\nConfirm &amp; review<\/title>/,
+    );
     assert.match(svg, /data-edge="a-&gt;b"[^>]+class="flow"/);
     assert.match(svg, /class="dotted-flow"[^>]+stroke-dasharray="1 8"/);
     assert.match(svg, /<animate attributeName="stroke-dashoffset" from="0" to="-18"/);
     await writeFile(join(dir, "only.txt"), "not a diagram statement\n");
     await assert.rejects(exportSvg(dir));
+    await writeFile(join(dir, "only.txt"), "");
+    await assert.rejects(exportSvg(dir), /Cannot export an empty diagram/);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("exports architecture diagrams containing only groups and their connections", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "diagram-canvas-skill-svg-"));
+  try {
+    await writeFile(
+      join(dir, "only.txt"),
+      "# layout: architecture\n[a: Area A]\n[b: Area B]\na => b: calls\n",
+    );
+    const svg = await exportSvg(dir);
+    assert.match(svg, /Area A/);
+    assert.match(svg, /Area B/);
+    assert.match(svg, /data-edge="a-&gt;b"/);
+    assert.doesNotMatch(svg, /NaN|Infinity/);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

@@ -78,9 +78,10 @@ export function renderSvg(current: DiagramFiles, base?: DiagramFiles) {
     baseDiagram &&
     compare({ diagram: baseDiagram, layout: {} }, { diagram: currentDiagram, layout: {} });
   const diagram = comparison ? comparison.union : currentDiagram;
-  if (!diagram.nodes.length) throw new Error("Cannot export an empty diagram.");
   const changes = comparison ? comparison.changes : new Map<string, Change>();
   const auto = autoLayout(diagram);
+  if (!diagram.nodes.length && !auto.groups.length)
+    throw new Error("Cannot export an empty diagram.");
   const sequence = diagram.layout === "sequence";
   if (sequence) {
     for (const [id, y] of Object.entries(auto.steps ?? {})) auto.steps![id] = y + 16;
@@ -269,8 +270,12 @@ export function renderSvg(current: DiagramFiles, base?: DiagramFiles) {
   const width = number(Math.max(...boxes.map((box) => box.x + box.width)) + 32 - left);
   const height = number(Math.max(...boxes.map((box) => box.y + box.height)) + 32 - top);
   const name = base ? `${current.name} compared with ${base.name}` : current.name;
+  const diagramTitle = [
+    name,
+    ...notes.filter((note) => note.target === undefined).map((note) => note.text),
+  ].join("\n");
   const grid = sequence
     ? '<pattern id="grid" width="64" height="64" patternUnits="userSpaceOnUse"><path d="M64,0 H0 V64" fill="none" stroke="#71839e" stroke-opacity="0.14" stroke-width="0.6"/></pattern>'
     : '<pattern id="grid" width="24" height="24" patternUnits="userSpaceOnUse"><circle cx="2" cy="2" r="0.7" fill="#1e293b"/></pattern>';
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="${number(left)} ${number(top)} ${width} ${height}" role="img" aria-labelledby="diagram-title"><title id="diagram-title">${escape(name)}</title><desc>Component relationships and ordered operations. Teal indicates additions, blue indicates changes, and pink dashed lines indicate removals. Moving dotted lines trace selected connections.</desc><defs>${grid}</defs><style>text{font-family:system-ui,sans-serif}.node-label{font-size:14px;fill:white}.group-label{font-size:13px;font-weight:600;fill:white}.subtitle{font-size:12px}.edge-label{font-size:11px;text-anchor:middle;fill:#cbd5e1}${diagram.layout === "sequence" ? ".loop-label{text-anchor:start}.edge-label.added{fill:#40c1ac}.edge-label.changed{fill:#93c5fd}.edge-label.removed{fill:#f6459d}.step-number{font-size:10px;text-anchor:end}.legend-label{font-size:11px;fill:#94a3b8}.comparison-title{font-size:13px;font-weight:600;fill:#e2e8f0}.comparison-value{font-size:12px}" : ""}@media(prefers-reduced-motion:reduce){.dotted-flow{display:none}.flow{stroke-opacity:1}}</style><rect x="${number(left)}" y="${number(top)}" width="${width}" height="${height}" fill="#020617"/><rect x="${number(left)}" y="${number(top)}" width="${width}" height="${height}" fill="url(#grid)"/>${[...groups, ...timelines, ...edges, ...nodes, ...labels, ...comparisons].join("\n")}</svg>\n`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="${number(left)} ${number(top)} ${width} ${height}" role="img" aria-labelledby="diagram-title"><title id="diagram-title">${escape(diagramTitle)}</title><desc>Component relationships and ordered operations. Teal indicates additions, blue indicates changes, and pink dashed lines indicate removals. Moving dotted lines trace selected connections.</desc><defs>${grid}</defs><style>text{font-family:system-ui,sans-serif}.node-label{font-size:14px;fill:white}.group-label{font-size:13px;font-weight:600;fill:white}.subtitle{font-size:12px}.edge-label{font-size:11px;text-anchor:middle;fill:#cbd5e1}${diagram.layout === "sequence" ? ".loop-label{text-anchor:start}.edge-label.added{fill:#40c1ac}.edge-label.changed{fill:#93c5fd}.edge-label.removed{fill:#f6459d}.step-number{font-size:10px;text-anchor:end}.legend-label{font-size:11px;fill:#94a3b8}.comparison-title{font-size:13px;font-weight:600;fill:#e2e8f0}.comparison-value{font-size:12px}" : ""}@media(prefers-reduced-motion:reduce){.dotted-flow{display:none}.flow{stroke-opacity:1}}</style><rect x="${number(left)}" y="${number(top)}" width="${width}" height="${height}" fill="#020617"/><rect x="${number(left)}" y="${number(top)}" width="${width}" height="${height}" fill="url(#grid)"/>${[...groups, ...timelines, ...edges, ...nodes, ...labels, ...comparisons].join("\n")}</svg>\n`;
 }
