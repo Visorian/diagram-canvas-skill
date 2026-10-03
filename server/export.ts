@@ -3,10 +3,11 @@
 import { readFile, readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { partNames, toDiagramFiles, type PartSuffix } from "../src/diagram/format.ts";
+import { renderSvg } from "./svg.ts";
 
 const suffixes: PartSuffix[] = [".txt", ".layout.json", ".notes.md", ".marks"];
 
-export async function exportPage(page: string, dir: string) {
+async function readDiagrams(dir: string) {
   const names = partNames(await readdir(dir).catch(() => []), ".txt").toSorted();
   const diagrams = await Promise.all(
     names.map(async (name) => {
@@ -21,6 +22,22 @@ export async function exportPage(page: string, dir: string) {
       return toDiagramFiles(name, Object.fromEntries(parts));
     }),
   );
+  return { names, diagrams };
+}
+
+export async function exportSvg(dir: string, name?: string, against?: string) {
+  const { diagrams } = await readDiagrams(dir);
+  const current = name ? diagrams.find((diagram) => diagram.name === name) : diagrams[0];
+  if (!name && diagrams.length > 1)
+    throw new Error("SVG export needs --diagram when there are multiple diagrams.");
+  if (!current) throw new Error(`No diagram found${name ? `: ${name}` : ""}.`);
+  const base = against ? diagrams.find((diagram) => diagram.name === against) : undefined;
+  if (against && !base) throw new Error(`No comparison diagram found: ${against}.`);
+  return renderSvg(current, base);
+}
+
+export async function exportPage(page: string, dir: string) {
+  const { names, diagrams } = await readDiagrams(dir);
   // With `<` escaped, no diagram text can end the script element early.
   const data = JSON.stringify(diagrams).replaceAll("<", "\\u003c");
   const script = `<script type="application/json" id="diagram-data">${data}</script>`;

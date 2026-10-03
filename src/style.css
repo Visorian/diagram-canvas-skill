@@ -54,11 +54,12 @@
   font-size: 11px;
 }
 
-/* Vue Flow's animated edges, and their sample in the legend: dashes flow toward the target. */
+/* Vue Flow's animated edges, and their sample in the legend: dotted lines flow toward the target. */
 .vue-flow__edge.animated .vue-flow__edge-path,
 .legend-flow {
   stroke: #195ed8;
-  stroke-dasharray: 6 10;
+  stroke-dasharray: 1 8;
+  stroke-linecap: round;
   animation: edge-flow 1.2s linear infinite;
 }
 
@@ -101,7 +102,7 @@
 
 @keyframes edge-flow {
   to {
-    stroke-dashoffset: -32;
+    stroke-dashoffset: -18;
   }
 }
 

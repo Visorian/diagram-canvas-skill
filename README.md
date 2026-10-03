@@ -61,6 +61,13 @@ The format is documented in [`skills/diagram-canvas/SKILL.md`](skills/diagram-ca
 
 ## View online
 
+The canvas starts in dark mode and remembers a theme the user chooses.
+`canvas.js export diagrams --diagram shop --out shop.svg` exports a dark SVG image using automatic
+layout, with moving dotted lines on `=>` connections and notes as tooltips. Sequence diagrams carry a short dotted trail along each connection in step
+order, and removed connections stay stationary. Add `--compare shop-before` to include
+changes against another diagram. Sequence comparisons use a small change legend and put before/after details below the flow.
+Operation labels sit clear of the arrows. The SVG needs no browser, scripts or external assets.
+
 `canvas.js export diagrams --out diagrams.html` writes all diagrams into one read-only page that
 works without a server. To publish it on GitHub Pages, set **Settings → Pages → Source** to
 "GitHub Actions" and add this workflow:
