@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.0](https://github.com/Visorian/diagram-canvas-skill/compare/v1.6.0...v1.7.0) (2026-10-03)
+
+
+### Features
+
+* export animated SVG diagrams with readable comparisons ([#18](https://github.com/Visorian/diagram-canvas-skill/issues/18)) ([0904c99](https://github.com/Visorian/diagram-canvas-skill/commit/0904c99a6fc0b5a1371123dc73b1afbdc0d74fb0))
+
 ## [1.6.0](https://github.com/Visorian/diagram-canvas-skill/compare/v1.5.1...v1.6.0) (2026-09-30)
 
 
