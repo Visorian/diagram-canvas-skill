@@ -144,9 +144,10 @@ test("keeps connection labels clear of nodes and retains full clipped titles", a
         width: Number(attributes.width),
         height: Number(attributes.height),
         fill: attributes.fill,
+        node: attributes["data-node"],
       };
     });
-    const nodes = rectangles.filter((rect) => rect.fill === "#141029");
+    const nodes = rectangles.filter((rect) => rect.node !== undefined);
     const caption = rectangles.find((rect) => rect.fill === "#020617" && rect.height === 20)!;
     assert.equal(nodes.length, 2);
     for (const node of nodes)

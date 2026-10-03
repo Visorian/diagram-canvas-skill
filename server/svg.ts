@@ -30,7 +30,7 @@ const escape = (text: string) =>
           "'": "&apos;",
         })[char]!,
     );
-const colors: Record<Change, string> = { added: "#40c1ac", changed: "#908cfe", removed: "#f6459d" };
+const colors: Record<Change, string> = { added: "#40c1ac", changed: "#60a5fa", removed: "#f6459d" };
 const center = (value: Position | Box): Position =>
   Array.isArray(value)
     ? [value[0] + nodeSize.width / 2, value[1] + nodeSize.height]
@@ -109,7 +109,7 @@ export function renderSvg(current: DiagramFiles, base?: DiagramFiles) {
   const groups = auto.groups.map(({ id, box }) => {
     const group = diagram.groups.find((candidate) => candidate.id === id)!;
     const change = changes.get(id);
-    return `<g>${title(id, group.label)}<defs><clipPath id="group-label-${id}"><rect x="${box.x + 16}" y="${box.y}" width="${box.width - 32}" height="40"/></clipPath></defs><rect x="${box.x}" y="${box.y}" width="${box.width}" height="${box.height}" rx="12" fill="#0a0719" stroke="${change ? colors[change] : "#262437"}"/><text x="${box.x + 16}" y="${box.y + 26}" class="group-label" clip-path="url(#group-label-${id})">${escape(group.label)}</text></g>`;
+    return `<g>${title(id, group.label)}<defs><clipPath id="group-label-${id}"><rect x="${box.x + 16}" y="${box.y}" width="${box.width - 32}" height="40"/></clipPath></defs><rect x="${box.x}" y="${box.y}" width="${box.width}" height="${box.height}" rx="12" fill="#0b1220" stroke="${change ? colors[change] : "#1e293b"}"/><text x="${box.x + 16}" y="${box.y + 26}" class="group-label" clip-path="url(#group-label-${id})">${escape(group.label)}</text></g>`;
   });
   const timelines = diagram.nodes.flatMap((node) => {
     const length = auto.timelines?.[node.id];
@@ -225,7 +225,7 @@ export function renderSvg(current: DiagramFiles, base?: DiagramFiles) {
     const subtitle = [change, kind.tag, count ? `${count} note${count === 1 ? "" : "s"}` : ""]
       .filter(Boolean)
       .join(" · ");
-    return `<g>${title(node.id, node.label)}<defs><clipPath id="node-label-${node.id}"><rect x="${x + 42}" y="${y}" width="${nodeSize.width - 52}" height="${nodeSize.height}"/></clipPath></defs><rect data-node="${node.id}" x="${x}" y="${y}" width="${nodeSize.width}" height="${nodeSize.height}" rx="8" fill="#141029" stroke="${change ? colors[change] : "#3e3d4b"}"${kind.dashed || change === "removed" ? ' stroke-dasharray="5 4"' : ""}/><svg x="${x + 12}" y="${y + 18}" width="20" height="20" viewBox="0 0 24 24"><path d="${kind.icon}" fill="none" stroke="#9d9d9d" stroke-width="1.5"/></svg><g clip-path="url(#node-label-${node.id})"><text x="${x + 42}" y="${y + (subtitle ? 25 : 33)}" class="node-label"${change === "removed" ? ' text-decoration="line-through"' : ""}>${escape(node.label)}</text>${subtitle ? `<text x="${x + 42}" y="${y + 43}" class="subtitle" fill="${change ? colors[change] : "#9d9d9d"}">${escape(subtitle)}</text>` : ""}</g></g>`;
+    return `<g>${title(node.id, node.label)}<defs><clipPath id="node-label-${node.id}"><rect x="${x + 42}" y="${y}" width="${nodeSize.width - 52}" height="${nodeSize.height}"/></clipPath></defs><rect data-node="${node.id}" x="${x}" y="${y}" width="${nodeSize.width}" height="${nodeSize.height}" rx="8" fill="#0f172a" stroke="${change ? colors[change] : "#334155"}"${kind.dashed || change === "removed" ? ' stroke-dasharray="5 4"' : ""}/><svg x="${x + 12}" y="${y + 18}" width="20" height="20" viewBox="0 0 24 24"><path d="${kind.icon}" fill="none" stroke="#9d9d9d" stroke-width="1.5"/></svg><g clip-path="url(#node-label-${node.id})"><text x="${x + 42}" y="${y + (subtitle ? 25 : 33)}" class="node-label"${change === "removed" ? ' text-decoration="line-through"' : ""}>${escape(node.label)}</text>${subtitle ? `<text x="${x + 42}" y="${y + 43}" class="subtitle" fill="${change ? colors[change] : "#9d9d9d"}">${escape(subtitle)}</text>` : ""}</g></g>`;
   });
   const comparisons: string[] = [];
   if (sequence && comparison) {
@@ -253,12 +253,12 @@ export function renderSvg(current: DiagramFiles, base?: DiagramFiles) {
         ...sequenceChanges.map(({ after }) => afterX - x + labelWidth(after)),
       );
       comparisons.push(
-        `<path d="M${x},${top} h${width}" stroke="#262437"/><text x="${x}" y="${top + 28}" class="comparison-title">Changed operations</text><text x="${x}" y="${top + 54}" class="legend-label">Step</text><text x="${beforeX}" y="${top + 54}" class="legend-label">Before</text><text x="${afterX}" y="${top + 54}" class="legend-label">Now</text>`,
+        `<path d="M${x},${top} h${width}" stroke="#1e293b"/><text x="${x}" y="${top + 28}" class="comparison-title">Changed operations</text><text x="${x}" y="${top + 54}" class="legend-label">Step</text><text x="${beforeX}" y="${top + 54}" class="legend-label">Before</text><text x="${afterX}" y="${top + 54}" class="legend-label">Now</text>`,
       );
       sequenceChanges.forEach(({ id, step: operation, before, after }, index) => {
         const rowY = top + 80 + index * 28;
         comparisons.push(
-          `<text x="${x}" y="${rowY}" class="comparison-value" fill="#908cfe">${operation}</text><text data-before="${escape(id)}" x="${beforeX}" y="${rowY}" class="comparison-value" fill="#94a3b8">${escape(before)}</text><text data-after="${escape(id)}" x="${afterX}" y="${rowY}" class="comparison-value" fill="#e2e8f0">${escape(after)}</text>`,
+          `<text x="${x}" y="${rowY}" class="comparison-value" fill="#60a5fa">${operation}</text><text data-before="${escape(id)}" x="${beforeX}" y="${rowY}" class="comparison-value" fill="#94a3b8">${escape(before)}</text><text data-after="${escape(id)}" x="${afterX}" y="${rowY}" class="comparison-value" fill="#e2e8f0">${escape(after)}</text>`,
         );
       });
       boxes.push({ x, y: top, width, height: 92 + (sequenceChanges.length - 1) * 28 });
@@ -269,5 +269,8 @@ export function renderSvg(current: DiagramFiles, base?: DiagramFiles) {
   const width = number(Math.max(...boxes.map((box) => box.x + box.width)) + 32 - left);
   const height = number(Math.max(...boxes.map((box) => box.y + box.height)) + 32 - top);
   const name = base ? `${current.name} compared with ${base.name}` : current.name;
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="${number(left)} ${number(top)} ${width} ${height}" role="img" aria-labelledby="diagram-title"><title id="diagram-title">${escape(name)}</title><desc>Component relationships and ordered operations. Green indicates additions, violet indicates changes, and pink dashed lines indicate removals. Moving dotted lines trace selected connections.</desc><defs><pattern id="grid" width="24" height="24" patternUnits="userSpaceOnUse"><circle cx="2" cy="2" r="0.7" fill="#1e293b"/></pattern></defs><style>text{font-family:system-ui,sans-serif}.node-label{font-size:14px;fill:white}.group-label{font-size:13px;font-weight:600;fill:white}.subtitle{font-size:12px}.edge-label{font-size:11px;text-anchor:middle;fill:#cbd5e1}${diagram.layout === "sequence" ? ".loop-label{text-anchor:start}.edge-label.added{fill:#40c1ac}.edge-label.changed{fill:#b2aaff}.edge-label.removed{fill:#f6459d}.step-number{font-size:10px;text-anchor:end}.legend-label{font-size:11px;fill:#94a3b8}.comparison-title{font-size:13px;font-weight:600;fill:#e2e8f0}.comparison-value{font-size:12px}" : ""}@media(prefers-reduced-motion:reduce){.dotted-flow{display:none}.flow{stroke-opacity:1}}</style><rect x="${number(left)}" y="${number(top)}" width="${width}" height="${height}" fill="#020617"/>${sequence ? "" : `<rect x="${number(left)}" y="${number(top)}" width="${width}" height="${height}" fill="url(#grid)"/>`}${[...groups, ...timelines, ...edges, ...nodes, ...labels, ...comparisons].join("\n")}</svg>\n`;
+  const grid = sequence
+    ? '<pattern id="grid" width="64" height="64" patternUnits="userSpaceOnUse"><path d="M64,0 H0 V64" fill="none" stroke="#71839e" stroke-opacity="0.14" stroke-width="0.6"/></pattern>'
+    : '<pattern id="grid" width="24" height="24" patternUnits="userSpaceOnUse"><circle cx="2" cy="2" r="0.7" fill="#1e293b"/></pattern>';
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="${number(left)} ${number(top)} ${width} ${height}" role="img" aria-labelledby="diagram-title"><title id="diagram-title">${escape(name)}</title><desc>Component relationships and ordered operations. Teal indicates additions, blue indicates changes, and pink dashed lines indicate removals. Moving dotted lines trace selected connections.</desc><defs>${grid}</defs><style>text{font-family:system-ui,sans-serif}.node-label{font-size:14px;fill:white}.group-label{font-size:13px;font-weight:600;fill:white}.subtitle{font-size:12px}.edge-label{font-size:11px;text-anchor:middle;fill:#cbd5e1}${diagram.layout === "sequence" ? ".loop-label{text-anchor:start}.edge-label.added{fill:#40c1ac}.edge-label.changed{fill:#93c5fd}.edge-label.removed{fill:#f6459d}.step-number{font-size:10px;text-anchor:end}.legend-label{font-size:11px;fill:#94a3b8}.comparison-title{font-size:13px;font-weight:600;fill:#e2e8f0}.comparison-value{font-size:12px}" : ""}@media(prefers-reduced-motion:reduce){.dotted-flow{display:none}.flow{stroke-opacity:1}}</style><rect x="${number(left)}" y="${number(top)}" width="${width}" height="${height}" fill="#020617"/><rect x="${number(left)}" y="${number(top)}" width="${width}" height="${height}" fill="url(#grid)"/>${[...groups, ...timelines, ...edges, ...nodes, ...labels, ...comparisons].join("\n")}</svg>\n`;
 }
