@@ -61,11 +61,11 @@ test("exports an animated SVG comparison with escaped text and stationary remove
     assert.ok(!svg.includes("<script"));
     assert.ok(!svg.includes("foreignObject"));
     assert.match(svg, /new &amp; checked/);
-    assert.match(svg, /2 added/);
-    assert.match(svg, /1 removed/);
-    assert.match(svg, /Changed operations/);
-    assert.match(svg, /data-before="c-&gt;c"[^>]*>direct apply/);
-    assert.match(svg, /data-after="c-&gt;c"[^>]*>validate/);
+    assert.match(svg, /class="legend-label">Added<\/text>/);
+    assert.match(svg, /class="legend-label">Changed<\/text>/);
+    assert.match(svg, /class="legend-label">Removed<\/text>/);
+    assert.match(svg, /class="legend-label">Unchanged<\/text>/);
+    assert.doesNotMatch(svg, /Changed operations|data-before=|data-after=/);
     assert.doesNotMatch(svg, /Added:|Changed:|Was:/);
     const loops = [...svg.matchAll(/<path data-edge="(c-&gt;c(?:#\d+)?)" d="([^"]+)"/g)];
     assert.equal(loops.length, 2);
