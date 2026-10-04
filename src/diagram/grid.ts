@@ -339,7 +339,7 @@ export function flowGrid(diagram: Diagram): AutoLayout {
 // empty group keeps one empty cell, so it can still be connected.
 const blockWidth = 3;
 
-export function architectureGrid(diagram: Diagram): AutoLayout {
+export function architectureGrid(diagram: Diagram, gap = 48): AutoLayout {
   const nodesIn = (group: string | undefined) =>
     diagram.nodes.filter((node) => node.group === group);
   const bands = [
@@ -399,7 +399,7 @@ export function architectureGrid(diagram: Diagram): AutoLayout {
     Array.from({ length: columnCount }, () => nodeSize.width),
     Array.from({ length: rowCount }, () => nodeSize.height),
     spans,
-    { vertical: 48, horizontal: 64, bottom: 32 },
+    { vertical: gap, horizontal: 64, bottom: 32 },
   );
   const cells = new Map(
     seats.map(({ id, row, column }): [string, Cell] => [
