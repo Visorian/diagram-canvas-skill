@@ -67,6 +67,7 @@ function onFocusout(event: FocusEvent) {
       aria-haspopup="listbox"
       :aria-expanded="open"
       :aria-label="label"
+      @mousedown.prevent="button?.focus()"
       @click="open ? (open = false) : show()"
       @keydown.down.prevent="show"
     >

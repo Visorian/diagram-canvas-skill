@@ -944,11 +944,13 @@ function closePopovers() {
         </button>
       </div>
       <button
-        v-if="!sidebarOpen"
         type="button"
-        class="button absolute bottom-3 right-3 z-10 flex items-center gap-2 shadow-sm md:bottom-auto md:top-3"
-        aria-label="Show sidebar"
-        @click="setSidebar(true)"
+        class="button fixed bottom-3 right-3 z-40 flex size-11 items-center justify-center gap-2 px-0 shadow-sm md:absolute md:bottom-auto md:top-3 md:z-10 md:h-auto md:w-auto md:px-3"
+        :class="sidebarOpen && 'md:hidden'"
+        :aria-label="sidebarOpen ? 'Hide sidebar' : 'Show sidebar'"
+        :aria-expanded="sidebarOpen"
+        aria-controls="sidebar"
+        @click="setSidebar(!sidebarOpen)"
       >
         <svg
           class="size-5"
@@ -963,7 +965,7 @@ function closePopovers() {
           <rect width="18" height="18" x="3" y="3" rx="2" />
           <path d="M15 3v18" />
         </svg>
-        Sidebar
+        <span class="hidden md:inline">Sidebar</span>
       </button>
       <ContextMenu v-if="menu" :request="menu" @close="menu = undefined" />
       <CanvasPrompt v-if="prompt" :key="promptKey" :request="prompt" @close="prompt = undefined" />
@@ -1068,7 +1070,7 @@ function closePopovers() {
           </button>
           <button
             type="button"
-            class="button grid size-9 place-items-center px-0"
+            class="button hidden size-9 place-items-center px-0 md:grid"
             aria-label="Hide sidebar"
             title="Hide sidebar"
             @click="setSidebar(false)"
@@ -1466,7 +1468,7 @@ function closePopovers() {
             Send to agent
           </button>
         </template>
-        <div class="flex gap-2">
+        <div class="flex gap-2 pr-12 md:pr-0">
           <button
             v-if="!readOnly"
             class="button"
