@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.1](https://github.com/Visorian/diagram-canvas-skill/compare/v1.7.0...v1.7.1) (2026-10-05)
+
+
+### Bug Fixes
+
+* improve mobile dropdown and sidebar controls ([#21](https://github.com/Visorian/diagram-canvas-skill/issues/21)) ([4fc588e](https://github.com/Visorian/diagram-canvas-skill/commit/4fc588e9fde36925f3f45cf8dea559dd508f340f))
+
 ## [1.7.0](https://github.com/Visorian/diagram-canvas-skill/compare/v1.6.0...v1.7.0) (2026-10-04)
 
 
