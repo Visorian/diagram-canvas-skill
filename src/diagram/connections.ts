@@ -3,8 +3,7 @@
 // only there. Legs that share a channel get their own tracks, and the ports where connections meet
 // a node or group spread along its side, so parallel connections stay apart.
 import { edgeId, type DiagramEdge, type Position } from "./format";
-import type { Channel, Slot } from "./grid";
-import type { Box, Connection } from "./layout";
+import type { Box, Channel, Connection, Slot } from "./grid";
 
 // A node or group a connection can end at: its box and the rows and columns of cells it covers.
 export interface Terminal {

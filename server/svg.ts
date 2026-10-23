@@ -1,8 +1,19 @@
-import { compare, type Change } from "../src/diagram/compare.ts";
-import { labelWidth, step } from "../src/diagram/connections.ts";
-import { edgeId, parseDiagram, type DiagramFiles, type Position } from "../src/diagram/format.ts";
-import { architectureGrid } from "../src/diagram/grid.ts";
-import { autoLayout, nodeSize, type Box } from "../src/diagram/layout.ts";
+import type { DiagramFiles } from "../src/diagram/format.ts";
+import {
+  architectureGrid,
+  compareVersions,
+  labelHeight,
+  labelWidth,
+  nodeSize,
+  parseDiagram,
+  roundedPath,
+  scene,
+  shortLabel,
+  type Box,
+  type Change,
+  type Position,
+} from "../src/diagram/index.ts";
+import { autoLayout } from "../src/diagram/layout.ts";
 import { parseNotes } from "../src/diagram/notes.ts";
 import { kindStyles } from "../src/kinds.ts";
 
@@ -32,10 +43,6 @@ const escape = (text: string) =>
         })[char]!,
     );
 const colors: Record<Change, string> = { added: "#40c1ac", changed: "#60a5fa", removed: "#f6459d" };
-const center = (value: Position | Box): Position =>
-  Array.isArray(value)
-    ? [value[0] + nodeSize.width / 2, value[1] + nodeSize.height]
-    : [value.x + value.width / 2, value.y + value.height];
 const number = (value: number) => Number(value.toFixed(2));
 
 function dottedFlow(path: string, color: string) {
@@ -69,7 +76,8 @@ function sequenceTrail(
 }
 
 // A native SVG image: no scripts, foreignObject, fonts or external assets. Uses the canvas's
-// automatic layout and routes, so it can be exported without a browser.
+// automatic layout and routes, so it can be exported without a browser. Labels get room as in the
+// scene (see scene.ts); two versions that don't differ are no comparison.
 export function renderSvg(current: DiagramFiles, base?: DiagramFiles) {
   const currentDiagram = parseDiagram(current.source);
   const baseDiagram = base && parseDiagram(base.source);
@@ -77,37 +85,31 @@ export function renderSvg(current: DiagramFiles, base?: DiagramFiles) {
   if (errors.length) throw new Error(errors.join("\n"));
   const comparison =
     baseDiagram &&
-    compare({ diagram: baseDiagram, layout: {} }, { diagram: currentDiagram, layout: {} });
+    compareVersions({ diagram: baseDiagram, layout: {} }, { diagram: currentDiagram, layout: {} });
   const diagram = comparison ? comparison.union : currentDiagram;
   const changes = comparison ? comparison.changes : new Map<string, Change>();
-  const auto =
-    comparison && diagram.layout === "architecture"
-      ? architectureGrid(
-          diagram,
-          Math.max(48, ...diagram.edges.map((edge) => labelWidth(edge.label) + 32)),
-        )
-      : autoLayout(diagram);
+  const gap = Math.max(
+    48,
+    ...[...diagram.edges.map((edge) => edge.label), ...(comparison?.reserved.values() ?? [])].map(
+      (label) => labelWidth(shortLabel(label)) + 32,
+    ),
+  );
+  const laid = scene(
+    diagram,
+    (extra) =>
+      comparison && diagram.layout === "architecture"
+        ? architectureGrid(diagram, gap, extra)
+        : autoLayout(diagram, extra),
+    { reserved: comparison?.reserved },
+  );
+  const auto = laid.layout;
   if (!diagram.nodes.length && !auto.groups.length)
     throw new Error("Cannot export an empty diagram.");
   const sequence = diagram.layout === "sequence";
-  if (sequence) {
-    for (const [id, y] of Object.entries(auto.steps ?? {})) auto.steps![id] = y + 16;
-    for (const [id, length] of Object.entries(auto.timelines ?? {}))
-      auto.timelines![id] = length + 16;
-    for (const group of auto.groups) group.box.height += 16;
-  }
   const nodeBoxes = diagram.nodes.map((node) => {
     const [x, y] = auto.positions[node.id]!;
     return { x, y, ...nodeSize };
   });
-  const headerBoxes = auto.groups.map(({ box }) => ({ ...box, height: 40 }));
-  const drawnIds = new Set([
-    ...diagram.nodes.map((node) => node.id),
-    ...auto.groups.map(({ id }) => id),
-  ]);
-  const drawableEdges = diagram.edges.filter(
-    (edge) => drawnIds.has(edge.source) && drawnIds.has(edge.target),
-  );
   const notes = parseNotes(current.notes);
   const title = (id: string, label: string) =>
     `<title>${escape(
@@ -130,63 +132,23 @@ export function renderSvg(current: DiagramFiles, base?: DiagramFiles) {
     ];
   });
   const labels: string[] = [];
-  const labelBoxes: Box[] = [];
-  const activeEdges = drawableEdges.filter((edge) => changes.get(edgeId(edge)) !== "removed");
-  const edges = drawableEdges.map((edge, index) => {
-    const id = edgeId(edge);
-    const source =
-      auto.positions[edge.source] ?? auto.groups.find((group) => group.id === edge.source)?.box;
-    const target =
-      auto.positions[edge.target] ?? auto.groups.find((group) => group.id === edge.target)?.box;
-    if (!source || !target) throw new Error(`Missing endpoint for ${id}.`);
-    const [sx, sy] = center(source);
-    const [tx, ty] = center(target);
-    const row = auto.steps?.[id];
-    const fallback: { points: Position[]; label: Position } = {
-      points: [
-        [sx, sy],
-        [sx, (sy + ty - nodeSize.height) / 2],
-        [tx, (sy + ty - nodeSize.height) / 2],
-        [tx, ty - nodeSize.height],
-      ],
-      label: [(sx + tx) / 2, (sy + ty - nodeSize.height) / 2],
-    };
-    const connection =
-      row !== undefined
-        ? step(sx, tx, row, edge.label, edge.source === edge.target)
-        : (auto.connections[id] ?? fallback);
-    const {
-      points,
-      label: [lx, routeY],
-    } = connection;
+  const activeEdges = laid.edges.filter(({ id }) => changes.get(id) !== "removed");
+  const edges = laid.edges.map((drawn, index) => {
+    const { id, edge, points, label } = drawn;
     const change = changes.get(id);
-    const label = edge.label;
-    const labelHeight = 20;
-    const width = number(labelWidth(label));
-    const labelX =
-      sequence && edge.source === edge.target
-        ? Math.max(...points.map(([x]) => x)) + 14 + width / 2
-        : lx;
-    let ly = sequence && edge.source !== edge.target ? routeY - 16 : routeY;
-    if (edge.label) {
-      const overlaps = (box: Box) =>
-        [...nodeBoxes, ...headerBoxes, ...labelBoxes].some(
-          (other) =>
-            box.x < other.x + other.width + 4 &&
-            box.x + box.width > other.x - 4 &&
-            box.y < other.y + other.height + 4 &&
-            box.y + box.height > other.y - 4,
-        );
-      let distance = 0;
-      while (
-        overlaps({ x: labelX - width / 2, y: ly - labelHeight / 2, width, height: labelHeight })
-      ) {
-        distance += 1;
-        ly = routeY + Math.ceil(distance / 2) * 24 * (distance % 2 ? 1 : -1);
-      }
-      const box = { x: labelX - width / 2, y: ly - labelHeight / 2, width, height: labelHeight };
+    if (label) {
+      const {
+        text,
+        at: [x, y],
+        routeY,
+      } = label;
+      const width = number(label.width);
+      const box = { x: x - width / 2, y: y - labelHeight / 2, width, height: labelHeight };
       boxes.push(box);
-      labelBoxes.push(box);
+      const loop = sequence && edge.source === edge.target;
+      labels.push(
+        `<g>${title(id, edge.label)}${routeY === y ? "" : `<path d="M${number(x)},${number(routeY)} V${number(y)}" stroke="#334155"/>`}<rect data-label="${escape(id)}" x="${number(box.x)}" y="${number(box.y)}" width="${width}" height="${labelHeight}" rx="4" fill="${sequence ? "none" : "#020617"}"/><text x="${number(loop ? box.x + 6 : x)}" y="${number(y + 4)}" class="edge-label${loop ? " loop-label" : ""}${change ? ` ${change}` : ""}">${escape(text)}</text></g>`,
+      );
     }
     for (const [x, y] of points) boxes.push({ x, y, width: 0, height: 0 });
     const animated =
@@ -198,17 +160,14 @@ export function renderSvg(current: DiagramFiles, base?: DiagramFiles) {
         : animated
           ? "#529aff"
           : "#64748b";
-    const path = points.map(([x, y], i) => `${i ? "L" : "M"}${number(x)},${number(y)}`).join(" ");
-    if (edge.label)
-      labels.push(
-        `<g>${title(id, edge.label)}${sequence || ly === routeY ? "" : `<path d="M${number(lx)},${number(routeY)} V${number(ly)}" stroke="#334155"/>`}<rect data-label="${escape(id)}" x="${number(labelX - width / 2)}" y="${number(ly - labelHeight / 2)}" width="${width}" height="${labelHeight}" rx="4" fill="${sequence ? "none" : "#020617"}"/><text x="${number(sequence && edge.source === edge.target ? labelX - width / 2 + 6 : labelX)}" y="${number(ly + 4)}" class="edge-label${sequence && edge.source === edge.target ? " loop-label" : ""}${change ? ` ${change}` : ""}">${escape(label)}</text></g>`,
-      );
+    const path = roundedPath(points);
     if (sequence) {
+      const row = auto.steps?.[id] ?? points[0]![1];
       const gutterX = Math.min(...nodeBoxes.map((box) => box.x)) - 22;
       labels.push(
-        `<text data-step="${escape(id)}" x="${gutterX}" y="${routeY + 4}" class="step-number" fill="${change ? colors[change] : "#64748b"}">${index + 1}</text>`,
+        `<text data-step="${escape(id)}" x="${gutterX}" y="${row + 4}" class="step-number" fill="${change ? colors[change] : "#64748b"}">${index + 1}</text>`,
       );
-      boxes.push({ x: gutterX - 14, y: routeY - 10, width: 24, height: 20 });
+      boxes.push({ x: gutterX - 14, y: row - 10, width: 24, height: 20 });
     }
     const flow = animated
       ? diagram.layout === "sequence"
@@ -216,7 +175,7 @@ export function renderSvg(current: DiagramFiles, base?: DiagramFiles) {
             path,
             points,
             comparison ? color : "#93c5fd",
-            activeEdges.indexOf(edge),
+            activeEdges.indexOf(drawn),
             activeEdges.length,
           )
         : dottedFlow(path, color)
@@ -257,7 +216,7 @@ export function renderSvg(current: DiagramFiles, base?: DiagramFiles) {
   const top = Math.min(...boxes.map((box) => box.y)) - 32;
   const width = number(Math.max(...boxes.map((box) => box.x + box.width)) + 32 - left);
   const height = number(Math.max(...boxes.map((box) => box.y + box.height)) + 32 - top);
-  const name = base ? `${current.name} compared with ${base.name}` : current.name;
+  const name = comparison && base ? `${current.name} compared with ${base.name}` : current.name;
   const diagramTitle = [
     name,
     ...notes.filter((note) => note.target === undefined).map((note) => note.text),

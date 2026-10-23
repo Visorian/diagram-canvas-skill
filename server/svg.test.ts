@@ -34,7 +34,8 @@ test("separates a removed direct dependency from an added two-hop architecture c
   const svg = renderSvg(after, before);
   const paths = [...svg.matchAll(/<path data-edge="([^"]+)" d="([^"]+)"/g)].map((match) => ({
     id: match[1],
-    points: [...match[2]!.matchAll(/[ML](-?[\d.]+),(-?[\d.]+)/g)].map((point) => [
+    // Corners are rounded: a Q's control point is the corner.
+    points: [...match[2]!.matchAll(/[MLQ](-?[\d.]+),(-?[\d.]+)/g)].map((point) => [
       Number(point[1]),
       Number(point[2]),
     ]),
@@ -56,7 +57,9 @@ test("separates a removed direct dependency from an added two-hop architecture c
     const path = paths.find((candidate) => candidate.id === id)!;
     const label = labels.find((candidate) => candidate.id === id)!;
     assert.ok(path.points.every(([, y]) => y === path.points[0]![1]));
-    assert.equal(label.y + label.height / 2, path.points[0]![1]);
+    // Above its line rather than on it, joined to it by a leader.
+    assert.ok(label.y + label.height < path.points[0]![1]!);
+    assert.ok(svg.includes(`V${label.y + label.height / 2}"`));
     assert.ok(label.x > Math.min(...path.points.map(([x]) => x!)));
     assert.ok(label.x + label.width < Math.max(...path.points.map(([x]) => x!)));
   }
@@ -66,4 +69,17 @@ test("separates a removed direct dependency from an added two-hop architecture c
   assert.match(svg, /data-edge="app-&gt;migrate"[^>]+stroke="#f6459d"[^>]+stroke-dasharray="5 4"/);
   assert.match(svg, /data-edge="app-&gt;seed"[^>]+stroke="#40c1ac"[^>]+class="flow"/);
   assert.match(svg, /data-edge="seed-&gt;migrate"[^>]+stroke="#40c1ac"[^>]+class="flow"/);
+});
+
+test("shortens long labels and keeps the full text in their tooltip", () => {
+  const label = "replicates every order to the reporting warehouse";
+  const svg = renderSvg(files(`# layout: architecture\na: A\nb: B\na -> b: ${label}\n`));
+  assert.match(svg, /class="edge-label">replicates every order to t…<\/text>/);
+  assert.ok(svg.includes(`<title>${label}</title>`));
+});
+
+test("presents two identical versions as one diagram", () => {
+  const source = "# layout: architecture\na: A\nb: B\na -> b: calls\n";
+  const svg = renderSvg(files(source), { ...files(source), name: "same" });
+  assert.equal(svg, renderSvg(files(source)));
 });
