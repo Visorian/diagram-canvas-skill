@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.8.0](https://github.com/Visorian/diagram-canvas-skill/compare/v1.7.1...v1.8.0) (2026-10-23)
+
+
+### Features
+
+* share label placement and comparison layout as a copyable diagram library ([#23](https://github.com/Visorian/diagram-canvas-skill/issues/23)) ([e6f3fb7](https://github.com/Visorian/diagram-canvas-skill/commit/e6f3fb70710fa850f3d3b78c6e05f0a9b0489a2d))
+
 ## [1.7.1](https://github.com/Visorian/diagram-canvas-skill/compare/v1.7.0...v1.7.1) (2026-10-05)
 
 
