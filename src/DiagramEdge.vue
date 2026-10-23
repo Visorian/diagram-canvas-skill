@@ -9,14 +9,19 @@ import {
 import { computed } from "vue";
 import { step } from "./diagram/connections";
 import type { Connection } from "./diagram/layout";
+import { roundedPath } from "./diagram/scene";
 
 // Smooth step edge that avoids nodes. In a sequence, an edge runs across its row at `step`, between
 // the nodes' timelines wherever the nodes are. Elsewhere it follows the connection the auto layout
 // drew for it while its ends stay where the layout placed them. Otherwise, when the plain smooth
 // step would cut through a node, and for back edges to a node above, the edge leaves through the
 // gap below its source, follows the nearest free vertical channel and enters its target from the
-// gap above it; `offset` moves both ends sideways, which keeps parallel edges apart.
-const props = defineProps<EdgeProps<{ connection?: Connection; step?: number; offset?: number }>>();
+// gap above it; `offset` moves both ends sideways, which keeps parallel edges apart. A label off the
+// connection gets a leader from `leader`, the height where it meets the connection.
+const props =
+  defineProps<
+    EdgeProps<{ connection?: Connection; step?: number; offset?: number; leader?: number }>
+  >();
 const { getEdges, getNodes } = useVueFlow();
 const gap = 20;
 const channelOffset = 24;
@@ -52,25 +57,6 @@ const crossesNode = ([x1, y1]: Point, [x2, y2]: Point) =>
 const isClear = (points: Point[]) =>
   points.every((point, index) => index === 0 || !crossesNode(points[index - 1]!, point));
 
-// Rounds each corner of an orthogonal polyline like the smooth step edges do.
-function roundedPath(points: Point[]) {
-  return points
-    .map(([x, y], index) => {
-      const previous = points[index - 1];
-      const next = points[index + 1];
-      if (!previous || !next) return `${index === 0 ? "M" : "L"}${x},${y}`;
-      const r = Math.min(
-        radius,
-        Math.hypot(x - previous[0], y - previous[1]) / 2,
-        Math.hypot(next[0] - x, next[1] - y) / 2,
-      );
-      const before = [x - Math.sign(x - previous[0]) * r, y - Math.sign(y - previous[1]) * r];
-      const after = [x + Math.sign(next[0] - x) * r, y + Math.sign(next[1] - y) * r];
-      return `L${before.join(",")} Q${x},${y} ${after.join(",")}`;
-    })
-    .join(" ");
-}
-
 // The auto layout's connection holds while both ends sit where it placed them and nothing moved
 // into it.
 const laidOut = computed(() => {
@@ -91,10 +77,16 @@ const laidOut = computed(() => {
   const { source, target, points, label } = connection;
   if (!placedAt(props.sourceNode, source) || !placedAt(props.targetNode, target)) return undefined;
   if (!isClear(points)) return undefined;
-  return { path: roundedPath(points), labelX: label[0], labelY: label[1] };
+  const leader = props.data?.leader;
+  return {
+    path: roundedPath(points),
+    labelX: label[0],
+    labelY: label[1],
+    ...(leader !== undefined && { leader: `M${label[0]},${leader} V${label[1]}` }),
+  };
 });
 
-const drawn = computed(() => {
+const drawn = computed((): { path: string; labelX: number; labelY: number; leader?: string } => {
   if (laidOut.value) return laidOut.value;
   const offset = props.data?.offset ?? 0;
   const { sourceY, targetY } = props;
@@ -154,6 +146,7 @@ const drawn = computed(() => {
 </script>
 
 <template>
+  <path v-if="drawn.leader" class="diagram-leader" :d="drawn.leader" />
   <BaseEdge
     :id
     :path="drawn.path"

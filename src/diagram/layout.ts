@@ -10,48 +10,27 @@ import {
   headerGap,
   layerSeparation,
   nodeSize,
+  type AutoLayout,
+  type Box,
+  type Connection,
+  type Extra,
 } from "./grid";
 
 export { nodeSize };
+export type { AutoLayout, Box, Connection };
 
 // Distance of a back edge from the side of the node it passes, half the space between two nodes.
 const nodeClearance = 24;
 
-export interface Box {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}
-
-// The drawn path of an edge, with `label` on it. It holds while both ends stay where the auto
-// layout placed them, at the top-left corners `source` and `target`.
-export interface Connection {
-  points: Position[];
-  label: Position;
-  source: Position;
-  target: Position;
-}
-
-export interface AutoLayout {
-  positions: Layout;
-  connections: Record<string, Connection>;
-  // Boxes of the groups, outer ones before the groups they hold.
-  groups: { id: string; box: Box }[];
-  // In a sequence: the height of every edge's row, and how far each node's timeline runs below it.
-  steps?: Record<string, number>;
-  timelines?: Record<string, number>;
-}
-
 // Architecture diagrams are placed by their groups, and sequences as columns of nodes and rows of
 // edges. Flows are layered top-down along the edges, keeping the declaration order within a layer,
 // and back edges, which close a cycle, don't count for the layers. With groups, a flow gets a grid
-// of group columns, without them a layered layout.
-export function autoLayout(diagram: Diagram): AutoLayout {
-  if (diagram.layout === "architecture") return architectureGrid(diagram);
+// of group columns, without them a layered layout. `extra` widens channels of the grids.
+export function autoLayout(diagram: Diagram, extra: Extra = {}): AutoLayout {
+  if (diagram.layout === "architecture") return architectureGrid(diagram, 48, extra);
   if (diagram.layout === "sequence") return sequenceGrid(diagram);
   return diagram.nodes.some((node) => node.group !== undefined)
-    ? flowGrid(diagram)
+    ? flowGrid(diagram, extra)
     : layeredLayout(diagram);
 }
 

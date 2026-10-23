@@ -2,8 +2,14 @@
 // run through the whole diagram. Groups are boxes around rectangles of cells, drawn in the gaps
 // between them, and what a gap has left besides group borders is a channel for connections.
 import { gridConnections, step, type Terminal } from "./connections";
-import { edgeId, type Diagram, type DiagramEdge, type DiagramGroup, type Position } from "./format";
-import type { AutoLayout, Box } from "./layout";
+import {
+  edgeId,
+  type Diagram,
+  type DiagramEdge,
+  type DiagramGroup,
+  type Layout,
+  type Position,
+} from "./format";
 
 // Matches the fixed node size in DiagramNode.vue.
 export const nodeSize = { width: 208, height: 56 };
@@ -16,13 +22,48 @@ export const groupPadding = 16;
 export const groupHeader = 40;
 export const headerGap = 16;
 // Tracks in a channel keep this distance from what borders it.
-const trackClearance = 12;
+export const trackClearance = 12;
 
 export type Slot = "single" | "left" | "right";
 
 export interface Channel {
   at: number;
   room: number;
+}
+
+export interface Box {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+// The drawn path of an edge, with `label` on it. It holds while both ends stay where the auto
+// layout placed them, at the top-left corners `source` and `target`.
+export interface Connection {
+  points: Position[];
+  label: Position;
+  source: Position;
+  target: Position;
+}
+
+export interface AutoLayout {
+  positions: Layout;
+  connections: Record<string, Connection>;
+  // Boxes of the groups, outer ones before the groups they hold.
+  groups: { id: string; box: Box }[];
+  // In a sequence: the height of every edge's row, and how far each node's timeline runs below it.
+  steps?: Record<string, number>;
+  timelines?: Record<string, number>;
+  // In a grid: its channels, which `Extra` can widen (see scene.ts).
+  channels?: { vertical: Channel[]; horizontal: Channel[] };
+}
+
+// Room added to single channels of a grid, by channel index (see `Table`), so that the labels of
+// their connections fit.
+export interface Extra {
+  vertical?: readonly number[];
+  horizontal?: readonly number[];
 }
 
 // A group box around the cells from the first to the last column and row.
@@ -61,6 +102,7 @@ function table(
   rowHeights: number[],
   spans: Span[],
   channels: { vertical: number; horizontal: number; bottom: number },
+  extra: Extra = {},
 ): Table {
   const rowCount = rowHeights.length;
   const starting = (axis: "columns" | "rows", gap: number) =>
@@ -90,9 +132,10 @@ function table(
   const columnX: number[] = [];
   let x = 0;
   for (let gap = 0; gap <= columnWidths.length; gap++) {
+    const channel = channels.vertical + (extra.vertical?.[gap] ?? 0);
     x += stacked(ending("columns", gap), "columns", rowCount) * groupPadding;
-    vertical.push({ at: x + channels.vertical / 2, room: channels.vertical - 2 * trackClearance });
-    x += channels.vertical + stacked(starting("columns", gap), "columns", rowCount) * groupPadding;
+    vertical.push({ at: x + channel / 2, room: channel - 2 * trackClearance });
+    x += channel + stacked(starting("columns", gap), "columns", rowCount) * groupPadding;
     if (gap < columnWidths.length) {
       columnX.push(x);
       x += columnWidths[gap]!;
@@ -103,7 +146,9 @@ function table(
   let y = 0;
   for (let gap = 0; gap <= rowCount; gap++) {
     // Nothing runs above the first row; below the last run only back edges and edges turning up.
-    const channel = gap === 0 ? 0 : gap === rowCount ? channels.bottom : channels.horizontal;
+    const channel =
+      (gap === 0 ? 0 : gap === rowCount ? channels.bottom : channels.horizontal) +
+      (extra.horizontal?.[gap] ?? 0);
     y += stacked(ending("rows", gap), "rows", columnWidths.length) * groupPadding;
     horizontal.push({ at: y + channel / 2, room: channel - 2 * trackClearance });
     y +=
@@ -218,7 +263,7 @@ const slotX: Record<Slot, number> = {
   right: nodeSize.width + columnGap,
 };
 
-export function flowGrid(diagram: Diagram): AutoLayout {
+export function flowGrid(diagram: Diagram, extra: Extra = {}): AutoLayout {
   const order = new Map(diagram.nodes.map((node, index) => [node.id, index]));
   const back = backEdges(diagram);
   // Edges from or to a group don't layer anything.
@@ -314,6 +359,7 @@ export function flowGrid(diagram: Diagram): AutoLayout {
     Array.from({ length: rowCount }, () => nodeSize.height),
     spans,
     { vertical: 48, horizontal: layerSeparation, bottom: 32 },
+    extra,
   );
   const cells = new Map(
     seats.map(({ id, row, column, slot }): [string, Cell] => [
@@ -330,6 +376,7 @@ export function flowGrid(diagram: Diagram): AutoLayout {
     positions: positionsOf(cells),
     connections: connect(diagram, spans, cells, grid, true),
     groups: outermostFirst(spans, grid.boxes),
+    channels: { vertical: grid.vertical, horizontal: grid.horizontal },
   };
 }
 
@@ -339,7 +386,7 @@ export function flowGrid(diagram: Diagram): AutoLayout {
 // empty group keeps one empty cell, so it can still be connected.
 const blockWidth = 3;
 
-export function architectureGrid(diagram: Diagram, gap = 48): AutoLayout {
+export function architectureGrid(diagram: Diagram, gap = 48, extra: Extra = {}): AutoLayout {
   const nodesIn = (group: string | undefined) =>
     diagram.nodes.filter((node) => node.group === group);
   const bands = [
@@ -400,6 +447,7 @@ export function architectureGrid(diagram: Diagram, gap = 48): AutoLayout {
     Array.from({ length: rowCount }, () => nodeSize.height),
     spans,
     { vertical: gap, horizontal: 64, bottom: 32 },
+    extra,
   );
   const cells = new Map(
     seats.map(({ id, row, column }): [string, Cell] => [
@@ -416,6 +464,7 @@ export function architectureGrid(diagram: Diagram, gap = 48): AutoLayout {
     positions: positionsOf(cells),
     connections: connect(diagram, spans, cells, grid, false),
     groups: outermostFirst(spans, grid.boxes),
+    channels: { vertical: grid.vertical, horizontal: grid.horizontal },
   };
 }
 

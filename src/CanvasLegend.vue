@@ -1,11 +1,16 @@
 <script setup lang="ts">
-import { ref, watch } from "vue";
+import { computed, ref, watch } from "vue";
 import KindIcon from "./KindIcon.vue";
 import { changeStyles } from "./changes";
 import { kinds } from "./diagram/format";
+import type { LegendMark } from "./diagram/scene";
 import { kindStyles } from "./kinds";
 
-defineProps<{ comparing: boolean }>();
+// The changes the canvas highlights are only listed while it shows them.
+const props = defineProps<{ marks: LegendMark[] }>();
+const changes = computed(() =>
+  Object.entries(changeStyles).filter(([change]) => props.marks.some((mark) => mark === change)),
+);
 
 const open = ref(localStorage.getItem("legend") === "open");
 watch(open, (value) => localStorage.setItem("legend", value ? "open" : "closed"));
@@ -49,9 +54,9 @@ const swatch =
           </span>
         </div>
       </div>
-      <div v-if="comparing" class="grid gap-1.5">
+      <div v-if="changes.length > 0" class="grid gap-1.5">
         <p class="muted">Compared with another version</p>
-        <div v-for="(style, change) in changeStyles" :key="change" class="flex items-center gap-2">
+        <div v-for="[change, style] in changes" :key="change" class="flex items-center gap-2">
           <span :class="[swatch, style.border]" />
           <span>
             <span class="font-medium" :class="style.text">{{ style.name }}</span>
