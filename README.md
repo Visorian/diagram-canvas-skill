@@ -66,7 +66,8 @@ The canvas starts in dark mode and remembers a theme the user chooses.
 layout, with moving dotted lines on `=>` connections and notes as tooltips. Sequence diagrams carry a short dotted trail along each connection in step
 order, and removed connections stay stationary. Add `--compare shop-before` to include
 changes against another diagram. Sequence comparisons use a small change legend and put before/after details below the flow.
-Operation labels sit clear of the arrows. The SVG needs no browser, scripts or external assets.
+Labels sit clear of nodes, lines and arrows, and those longer than 28 characters end in an
+ellipsis, with the full text as a tooltip. The SVG needs no browser, scripts or external assets.
 
 `canvas.js export diagrams --out diagrams.html` writes all diagrams into one read-only page that
 works without a server. To publish it on GitHub Pages, set **Settings → Pages → Source** to
@@ -124,6 +125,9 @@ bun run check    # format, lint, typecheck, test and build
 `dist/viewer.html` that opens diagram files you choose. The bundle is committed, so the skill
 installs straight from the repo; CI fails when it doesn't match the sources.
 `bun run install:skill` builds the skill and copies it to `~/.claude/skills/diagram-canvas/`.
+
+The diagram format, layouts and the geometry of the SVG export in `src/diagram/` need no Vue, DOM
+or Node. [docs/library.md](docs/library.md) explains how to copy them into another app.
 
 ## License
 
