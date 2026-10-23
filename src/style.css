@@ -54,6 +54,20 @@
   font-size: 11px;
 }
 
+.vue-flow.unfitted .vue-flow__transformationpane {
+  opacity: 0;
+}
+
+/* Joins a label off its connection to it, while comparing. */
+.diagram-leader {
+  fill: none;
+  stroke: #cbd5e1;
+}
+
+.dark .diagram-leader {
+  stroke: #334155;
+}
+
 /* Vue Flow's animated edges, and their sample in the legend: dotted lines flow toward the target. */
 .vue-flow__edge.animated .vue-flow__edge-path,
 .legend-flow {

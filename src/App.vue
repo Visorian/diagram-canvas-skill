@@ -4,6 +4,8 @@
 import {
   MarkerType,
   VueFlow,
+  getRectOfNodes,
+  getTransformForBounds,
   type Connection,
   type Edge,
   type EdgeMouseEvent,
@@ -38,11 +40,12 @@ import NoteItem from "./NoteItem.vue";
 import SelectMenu from "./SelectMenu.vue";
 import { tagOption, tagsKey } from "./TagSelect.vue";
 import { kindStyles } from "./kinds";
-import { compare, type Change } from "./diagram/compare";
+import type { Change } from "./diagram/compare";
 import {
   edgeId,
   kinds,
   parseDiagram,
+  type Diagram,
   type DiagramEdge,
   type DiagramNode,
   type Position,
@@ -51,6 +54,7 @@ import {
 } from "./diagram/format";
 import { autoLayout, groupBoxes, nodeSize, type AutoLayout } from "./diagram/layout";
 import { parseNotes, type Note } from "./diagram/notes";
+import { compareVersions, legendMarks, scene } from "./diagram/scene";
 import { useDiagram } from "./diagram/useDiagram";
 import { embedded, readOnly } from "./mode";
 import { useTheme } from "./theme";
@@ -76,7 +80,8 @@ function setSidebar(visible: boolean) {
   sidebarOpen.value = visible;
   localStorage.setItem("sidebar", visible ? "open" : "closed");
 }
-const auto = shallowRef<{ name: string } & AutoLayout>();
+// `leaders` holds where the labels a comparison sets off their connections meet them.
+const auto = shallowRef<{ name: string; leaders?: Record<string, number> } & AutoLayout>();
 const selection = ref<string>();
 const flow = shallowRef<VueFlowStore>();
 const canvas = useTemplateRef("canvas");
@@ -158,6 +163,7 @@ function revealAboveSheet(target: string) {
   const element = canvas.value?.querySelector(`.vue-flow__node[data-id="${node.id}"]`);
   const rect = element?.getBoundingClientRect();
   if (rect && rect.top >= 0 && rect.bottom <= sheetTop) return;
+  following = false;
   const zoom = Math.max(store.viewport.value.zoom, 0.8);
   const sheetHeight = window.innerHeight - sheetTop;
   void store.setCenter(
@@ -211,7 +217,7 @@ const comparison = computed(
   () =>
     otherFiles.value &&
     otherDiagram.value &&
-    compare(
+    compareVersions(
       { diagram: otherDiagram.value, layout: otherFiles.value.layout },
       { diagram: diagram.value, layout: layout.value },
     ),
@@ -246,6 +252,9 @@ const versionOptions = computed(() => [
 const otherName = computed(() =>
   isDiagram(compareRef.value) ? compareRef.value : compareRef.value.slice(0, 7),
 );
+const legend = computed(() =>
+  legendMarks(shown.value, showOther.value ? undefined : comparison.value?.changes),
+);
 // The canvas doesn't edit while it shows a comparison.
 const locked = computed(() => readOnly || comparison.value !== undefined);
 // Both versions together take other room than one, so the view fits again once they're drawn.
@@ -253,26 +262,91 @@ watch(
   () => comparison.value !== undefined,
   async () => {
     await nextTick();
-    requestAnimationFrame(() => void flow.value?.fitView({ duration: 300 }));
+    requestAnimationFrame(() => fit(300));
   },
 );
 
-// Re-run the auto layout only when the graph structure changes, not on label edits or moves.
+// Edits move nothing, so the auto layout runs only when the graph structure changes, not on label
+// edits or moves. A comparison is only read: its grid makes room for the labels, which keep room for
+// both their versions (see scene.ts), so there the labels count too.
 const structure = computed(() =>
   JSON.stringify([
     laidOut.value.layout,
     laidOut.value.groups.map((group) => [group.id, group.outer, group.parent]),
     laidOut.value.nodes.map((node) => [node.id, node.group]),
     laidOut.value.edges.map(edgeId),
+    comparison.value
+      ? [laidOut.value.edges.map((edge) => edge.label), [...comparison.value.reserved]]
+      : [],
   ]),
 );
+function layOut(graph: Diagram) {
+  const plain = autoLayout(graph);
+  const reserved = comparison.value?.reserved;
+  if (!reserved || !plain.channels) return plain;
+  const laid = scene(graph, (extra) => autoLayout(graph, extra), {
+    reserved,
+    labelLimit: Number.POSITIVE_INFINITY,
+  });
+  const connections = { ...laid.layout.connections };
+  const leaders: Record<string, number> = {};
+  for (const { id, label } of laid.edges) {
+    const connection = connections[id];
+    if (!label || !connection) continue;
+    connections[id] = { ...connection, label: label.at };
+    if (label.routeY !== label.at[1]) leaders[id] = label.routeY;
+  }
+  return { ...laid.layout, connections, leaders };
+}
 watch(
   [structure, () => files.value?.name],
   ([, name]) => {
-    if (name) auto.value = { name, ...autoLayout(laidOut.value) };
+    if (name) auto.value = { name, ...layOut(laidOut.value) };
   },
   { immediate: true },
 );
+
+// The view fits the diagram, at most at 100%, into the canvas above the sheet that may cover it,
+// and fits again whenever either changes size, until the user moves the view. Vue Flow fits only
+// once on its own and up to 200%, so a new canvas stays hidden until it fits here.
+let following = true;
+const fitted = ref(false);
+watch(
+  () => files.value?.name,
+  () => (fitted.value = false),
+);
+function onInit(store: VueFlowStore) {
+  flow.value = store;
+  fit();
+  fitted.value = true;
+}
+function fit(duration = 0) {
+  following = true;
+  const store = flow.value;
+  const rect = canvas.value?.getBoundingClientRect();
+  const nodes = store?.getNodes.value ?? [];
+  if (!store || !rect || nodes.length === 0) return;
+  const sheetTop =
+    small.matches && sidebarOpen.value ? sidebar.value?.getBoundingClientRect().top : undefined;
+  const height = Math.min(rect.bottom, sheetTop ?? rect.bottom) - rect.top;
+  if (rect.width <= 0 || height <= 0) return;
+  const viewport = getTransformForBounds(
+    getRectOfNodes(nodes),
+    rect.width,
+    height,
+    store.minZoom.value,
+    1,
+    0.1,
+  );
+  void store.setViewport(viewport, { duration });
+}
+const resized = new ResizeObserver(() => {
+  if (following) fit();
+});
+onMounted(() => {
+  for (const element of [canvas.value, sidebar.value]) if (element) resized.observe(element);
+});
+onUnmounted(() => resized.disconnect());
 
 const notes = computed(() => parseNotes(files.value?.notes ?? ""));
 const marks = computed(() => new Set(files.value?.marks));
@@ -482,6 +556,7 @@ const edges = computed<Edge[]>(() =>
       type: "diagram",
       data: {
         connection: auto.value?.connections[id],
+        leader: auto.value?.leaders?.[id],
         step: auto.value?.steps?.[id],
         offset: parallelOffset(edge),
       },
@@ -687,6 +762,7 @@ function focus(target: string) {
   if (small.matches && !group) return;
   const edge = findEdge(target);
   const ids = edge ? [edge.source, edge.target] : [target];
+  following = false;
   void flow.value?.fitView({ nodes: ids.map(flowId), duration: 300, maxZoom: 1.2, padding: 0.4 });
 }
 
@@ -835,6 +911,12 @@ function onDrop(event: DragEvent) {
   if (readOnly && event.dataTransfer) void load(event.dataTransfer.files);
 }
 
+// Panning or zooming by the user ends fitting the view.
+function onMoveStart() {
+  following = false;
+  closePopovers();
+}
+
 function closePopovers() {
   menu.value = undefined;
   prompt.value = undefined;
@@ -858,14 +940,14 @@ function closePopovers() {
         :key="files?.name"
         :nodes
         :edges
-        :class="locked && 'read-only'"
+        :class="[locked && 'read-only', !fitted && 'unfitted']"
         :delete-key-code="null"
         :nodes-draggable="!locked"
         :nodes-connectable="!locked"
         :zoom-on-double-click="false"
         :min-zoom="0.2"
-        fit-view-on-init
-        @init="flow = $event"
+        @init="onInit"
+        @nodes-initialized="following && fit()"
         @node-click="select($event.node.id)"
         @edge-click="select($event.edge.id)"
         @pane-click="select()"
@@ -874,7 +956,7 @@ function closePopovers() {
         @node-context-menu="onElementMenu($event.node.id, $event.event)"
         @edge-context-menu="onElementMenu($event.edge.id, $event.event)"
         @pane-context-menu="openMenu($event, paneMenu(eventPoint($event)))"
-        @move-start="closePopovers"
+        @move-start="onMoveStart"
         @node-drag-stop="onDragStop"
         @connect="onConnect"
       >
@@ -916,7 +998,7 @@ function closePopovers() {
         class="hidden"
         @change="onFiles"
       />
-      <CanvasLegend v-if="ready" :comparing="comparison !== undefined" />
+      <CanvasLegend v-if="ready" :marks="legend" />
       <div
         v-if="ready && comparison"
         class="segmented absolute left-1/2 top-3 z-10 -translate-x-1/2 bg-white shadow-sm dark:bg-slate-800"
@@ -1118,6 +1200,9 @@ function closePopovers() {
             Against {{ otherName }}: {{ changeCounts.added }} added ·
             {{ changeCounts.changed }} changed · {{ changeCounts.removed }} removed. Press V to
             switch between them; the canvas doesn't edit meanwhile.
+          </p>
+          <p v-else-if="otherFiles" class="muted text-xs">
+            {{ otherName }} is the same as this version.
           </p>
         </div>
         <p v-if="readOnly" class="muted text-xs">Read-only view of the diagram files.</p>
@@ -1493,7 +1578,7 @@ function closePopovers() {
             aria-label="Reset view"
             title="Reset view"
             :disabled="!ready"
-            @click="flow?.fitView({ duration: 300 })"
+            @click="fit(300)"
           >
             <svg
               class="size-5"
