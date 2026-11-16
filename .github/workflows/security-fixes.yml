@@ -1,0 +1,25 @@
+name: Security fixes
+
+on:
+  schedule:
+    - cron: "17 */12 * * *"
+  push:
+    branches:
+      - main
+    paths:
+      - bun.lock
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  bun:
+    name: Bun
+    permissions:
+      contents: read
+      pull-requests: read
+    uses: visorian/public-workflows/.github/workflows/bun-security-fixes.yml@4f758f51f21d3d6db7616a163eecda47fa5be85b # main
+    with:
+      app-client-id: ${{ vars.DEPENDENCY_UPDATES_APP_CLIENT_ID }}
+    secrets:
+      app-private-key: ${{ secrets.DEPENDENCY_UPDATES_APP_PRIVATE_KEY }}
