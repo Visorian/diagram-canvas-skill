@@ -18,7 +18,7 @@ jobs:
     permissions:
       contents: read
       pull-requests: read
-    uses: visorian/public-workflows/.github/workflows/bun-security-fixes.yml@4f758f51f21d3d6db7616a163eecda47fa5be85b # main
+    uses: visorian/public-workflows/.github/workflows/bun-security-fixes.yml@0a34ed53f73612ee3f1ca906d92348b107dbc420 # main
     with:
       app-client-id: ${{ vars.DEPENDENCY_UPDATES_APP_CLIENT_ID }}
     secrets:
